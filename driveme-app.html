@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DriveMe">
+<meta name="theme-color" content="#0a0a0f">
+<title>DriveMe — Driving Together</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.08);
+    --accent: #5dd6b3;
+    --accent2: #60aed0;
+    --accent3: #ff6b6b;
+    --accent4: #ffd93d;
+    --text: #f0f0ff;
+    --text-dim: rgba(240,240,255,0.5);
+    --text-dimmer: rgba(240,240,255,0.25);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* MAP */
+  #map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
+  /* Hide Leaflet attribution */
+  .leaflet-control-attribution { display: none !important; }
+  .leaflet-control-zoom { display: none !important; }
+
+  /* Dark map filter */
+  .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.9);
+  }
+
+  /* ========== TOP BAR ========== */
+  #topBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: env(safe-area-inset-top, 12px) 12px 0;
+  }
+
+  /* Search box */
+  #searchBox {
+    background: rgba(18,18,26,0.96);
+    backdrop-filter: blur(20px);
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  #searchBox svg { flex-shrink: 0; opacity: 0.5; }
+
+  #searchInput {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 16px;
+    font-family: inherit;
+    text-align: right;
+  }
+
+  #searchInput::placeholder { color: var(--text-dimmer); }
+
+  #searchBtn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* Search results */
+  #searchResults {
+    background: rgba(18,18,26,0.98);
+    backdrop-filter: blur(20px);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    margin-top: 6px;
+    overflow: hidden;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .result-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.15s;
+  }
+
+  .result-item:last-child { border-bottom: none; }
+  .result-item:active { background: rgba(93,214,179,0.1); }
+
+  .result-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(93,214,179,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+
+  .result-name { font-size: 14px; font-weight: 600; }
+  .result-addr { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  /* ========== NAV BAR (during navigation) ========== */
+  #navBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: env(safe-area-inset-top, 12px) 12px 0;
+    display: none;
+  }
+
+  #navCard {
+    background: rgba(18,18,26,0.97);
+    backdrop-filter: blur(20px);
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  #navInstruction {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  #navArrow {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 24px;
+  }
+
+  #navText {
+    flex: 1;
+  }
+
+  #navDistance {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    font-family: 'SF Pro Display', -apple-system, sans-serif;
+    line-height: 1;
+  }
+
+  #navStreet {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  #navStats {
+    display: flex;
+    gap: 16px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    font-family: 'SF Pro Display', -apple-system, sans-serif;
+  }
+
+  .nav-stat-label {
+    font-size: 10px;
+    color: var(--text-dimmer);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  #cancelNav {
+    background: rgba(255,107,107,0.15);
+    border: 1px solid rgba(255,107,107,0.3);
+    color: var(--accent3);
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    margin-right: auto;
+  }
+
+  /* ========== SPEED METER ========== */
+  #speedMeter {
+    position: absolute;
+    bottom: 160px;
+    left: 16px;
+    z-index: 100;
+    display: none;
+  }
+
+  /* ========== BOTTOM BAR ========== */
+  #bottomBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 0 12px env(safe-area-inset-bottom, 16px);
+  }
+
+  #bottomCard {
+    background: rgba(18,18,26,0.96);
+    backdrop-filter: blur(20px);
+    border-radius: 20px 20px 16px 16px;
+    border: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
+  }
+
+  .bottom-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+
+  .bottom-btn.active {
+    color: var(--accent);
+    background: rgba(93,214,179,0.1);
+  }
+
+  .bottom-btn svg { width: 22px; height: 22px; }
+
+  /* My location button */
+  #locBtn {
+    position: absolute;
+    bottom: 130px;
+    right: 16px;
+    z-index: 100;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(18,18,26,0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    color: var(--accent);
+  }
+
+  /* Turn alert overlay */
+  #turnAlert {
+    position: absolute;
+    inset: 0;
+    z-index: 200;
+    background: rgba(93,214,179,0.12);
+    border: 3px solid rgba(93,214,179,0.5);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    animation: flashBorder 1s ease infinite;
+    pointer-events: none;
+  }
+
+  @keyframes flashBorder {
+    0%,100% { border-color: rgba(93,214,179,0.3); background: rgba(93,214,179,0.08); }
+    50% { border-color: rgba(93,214,179,0.7); background: rgba(93,214,179,0.18); }
+  }
+
+  #turnAlert .turn-arrow {
+    font-size: 80px;
+    filter: drop-shadow(0 0 20px rgba(93,214,179,0.8));
+  }
+
+  #turnAlert .turn-text {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  #turnAlert .turn-dist {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* Loading */
+  #loading {
+    position: absolute;
+    inset: 0;
+    z-index: 500;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .logo-text {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tagline {
+    font-size: 13px;
+    color: var(--text-dimmer);
+    letter-spacing: 2px;
+  }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(93,214,179,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-top: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  #toast {
+    position: absolute;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    background: rgba(18,18,26,0.97);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-size: 13px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  /* Route info panel */
+  #routePanel {
+    position: absolute;
+    bottom: 90px;
+    left: 12px;
+    right: 12px;
+    z-index: 100;
+    background: rgba(18,18,26,0.97);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(93,214,179,0.2);
+    border-radius: 18px;
+    padding: 16px;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  #routePanel h3 {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .route-stats {
+    display: flex;
+    gap: 0;
+    margin-bottom: 14px;
+  }
+
+  .route-stat {
+    flex: 1;
+    text-align: center;
+    padding: 0 8px;
+    border-left: 1px solid var(--border);
+  }
+
+  .route-stat:first-child { border-left: none; padding-right: 8px; padding-left: 0; text-align: right; }
+  .route-stat:last-child { text-align: left; }
+
+  .route-stat-val {
+    font-size: 24px;
+    font-weight: 800;
+    font-family: 'SF Pro Display', -apple-system, sans-serif;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .route-stat-label {
+    font-size: 10px;
+    color: var(--text-dimmer);
+    margin-top: 3px;
+    text-transform: uppercase;
+  }
+
+  #startNavBtn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), #4ab89a);
+    color: #000;
+    border: none;
+    border-radius: 14px;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  /* Leaflet custom marker */
+  .my-location-marker {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid white;
+    box-shadow: 0 0 0 4px rgba(93,214,179,0.3), 0 0 20px rgba(93,214,179,0.5);
+  }
+
+  .dest-marker {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent3);
+    border: 3px solid white;
+    box-shadow: 0 0 12px rgba(255,107,107,0.5);
+  }
+</style>
+</head>
+<body>
+
+<!-- HTTPS Notice -->
+<div id="httpsNotice" style="display:none;position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(255,107,107,0.95);padding:12px 16px;text-align:center;font-size:13px;font-weight:600;">
+  ⚠️ לחיפוש מלא — פתח מ-HTTPS. <span onclick="document.getElementById('httpsNotice').style.display='none'" style="margin-right:12px;cursor:pointer;opacity:0.7;">✕</span>
+</div>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="logo-text">DriveMe</div>
+  <div class="tagline">Driving Together</div>
+  <div class="spinner"></div>
+  <div style="font-size:12px;color:var(--text-dimmer);margin-top:8px;">מאתר מיקום...</div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Turn alert overlay -->
+<div id="turnAlert">
+  <div class="turn-arrow" id="turnArrow">➡️</div>
+  <div class="turn-text" id="turnText">פנייה ימינה</div>
+  <div class="turn-dist" id="turnDist">בעוד 300 מ׳</div>
+</div>
+
+<!-- Top: Search -->
+<div id="topBar">
+  <div id="searchBox">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input id="searchInput" type="text" placeholder="לאן תרצה לנסוע?" autocomplete="off" autocorrect="off"/>
+    <button id="searchBtn" onclick="doSearch()">חפש</button>
+  </div>
+  <div id="searchResults"></div>
+</div>
+
+<!-- Top: Navigation bar -->
+<div id="navBar">
+  <div id="navCard">
+    <div id="navInstruction">
+      <div id="navArrow">⬆️</div>
+      <div id="navText">
+        <div id="navDistance">500 מ׳</div>
+        <div id="navStreet">המשך ישר</div>
+      </div>
+      <button id="cancelNav" onclick="cancelNavigation()">✕ בטל</button>
+    </div>
+    <div id="navStats">
+      <div>
+        <div class="nav-stat-val" id="eta">--:--</div>
+        <div class="nav-stat-label">הגעה</div>
+      </div>
+      <div>
+        <div class="nav-stat-val" id="timeLeft">-- דק׳</div>
+        <div class="nav-stat-label">זמן</div>
+      </div>
+      <div>
+        <div class="nav-stat-val" id="distLeft">-- ק"מ</div>
+        <div class="nav-stat-label">מרחק</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Speed meter -->
+<div id="speedMeter">
+  <svg width="80" height="80" viewBox="0 0 80 80">
+    <circle cx="40" cy="40" r="36" fill="rgba(18,18,26,0.95)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+    <circle cx="40" cy="40" r="30" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6"
+      stroke-dasharray="162 28" stroke-dashoffset="42" transform="rotate(135 40 40)"/>
+    <circle cx="40" cy="40" r="30" fill="none" stroke="#5dd6b3" stroke-width="6" stroke-linecap="round"
+      id="speedArc" stroke-dasharray="0 190" stroke-dashoffset="42" transform="rotate(135 40 40)"
+      style="filter:drop-shadow(0 0 4px rgba(93,214,179,0.6));transition:stroke-dasharray 0.5s,stroke 0.3s"/>
+    <text x="40" y="37" text-anchor="middle" font-family="-apple-system" font-weight="700" font-size="18" fill="white" id="speedNum">0</text>
+    <text x="40" y="48" text-anchor="middle" font-family="-apple-system" font-weight="400" font-size="9" fill="rgba(255,255,255,0.4)">קמ"ש</text>
+    <text x="40" y="58" text-anchor="middle" font-family="-apple-system" font-weight="600" font-size="8" fill="rgba(93,214,179,0.7)" id="speedLimit">מותר --</text>
+  </svg>
+</div>
+
+<!-- My location button -->
+<div id="locBtn" onclick="goToMyLocation()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+    <circle cx="12" cy="12" r="8" stroke-dasharray="4 2" opacity="0.4"/>
+  </svg>
+</div>
+
+<!-- Route panel -->
+<div id="routePanel">
+  <h3>מסלול מוצע</h3>
+  <div class="route-stats">
+    <div class="route-stat">
+      <div class="route-stat-val" id="routeTime">--</div>
+      <div class="route-stat-label">דקות</div>
+    </div>
+    <div class="route-stat">
+      <div class="route-stat-val" id="routeDist">--</div>
+      <div class="route-stat-label">ק"מ</div>
+    </div>
+    <div class="route-stat">
+      <div class="route-stat-val" id="routeETA">--:--</div>
+      <div class="route-stat-label">הגעה</div>
+    </div>
+  </div>
+  <button id="startNavBtn" onclick="startNavigation()">
+    🚗 &nbsp; התחל ניווט
+  </button>
+</div>
+
+<!-- Bottom bar -->
+<div id="bottomBar">
+  <div id="bottomCard">
+    <button class="bottom-btn active" onclick="setTab('nav')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+      </svg>
+      ניווט
+    </button>
+    <button class="bottom-btn" onclick="setTab('discover')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      גלה
+    </button>
+    <button class="bottom-btn" onclick="setTab('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+      </svg>
+      הגדרות
+    </button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+// ============ STATE ============
+let map, myMarker, destMarker, routeLine;
+let myLat = null, myLng = null;
+let destLat = null, destLng = null;
+let routeData = null;
+let isNavigating = false;
+let watchId = null;
+let currentStep = 0;
+let speedLimit = 90;
+let synth = window.speechSynthesis;
+let lastSpokenStep = -1;
+let turnAlertTimeout = null;
+
+// ============ INIT ============
+window.addEventListener('load', initApp);
+
+function initApp() {
+  // Init map
+  map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false,
+    rotate: false,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Get location
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        myLat = pos.coords.latitude;
+        myLng = pos.coords.longitude;
+        map.setView([myLat, myLng], 15);
+        addMyMarker();
+        startWatching();
+        hideLoading();
+      },
+      err => {
+        // Default to Tel Aviv
+        myLat = 32.0853;
+        myLng = 34.7818;
+        map.setView([myLat, myLng], 14);
+        addMyMarker();
+        hideLoading();
+        showToast('⚠️ לא ניתן לאתר מיקום — מציג תל אביב');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  } else {
+    myLat = 32.0853; myLng = 34.7818;
+    map.setView([myLat, myLng], 14);
+    addMyMarker();
+    hideLoading();
+  }
+
+  // Search on enter
+  document.getElementById('searchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+
+  document.getElementById('searchInput').addEventListener('input', e => {
+    if (!e.target.value.trim()) {
+      document.getElementById('searchResults').style.display = 'none';
+    }
+  });
+}
+
+function hideLoading() {
+  setTimeout(() => {
+    const l = document.getElementById('loading');
+    l.style.opacity = '0';
+    l.style.transition = 'opacity 0.5s';
+    setTimeout(() => l.remove(), 500);
+  }, 800);
+}
+
+// ============ MARKERS ============
+function addMyMarker() {
+  if (myMarker) map.removeLayer(myMarker);
+  const icon = L.divIcon({
+    className: '',
+    html: '<div class="my-location-marker"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+  myMarker = L.marker([myLat, myLng], { icon, zIndexOffset: 1000 }).addTo(map);
+}
+
+function addDestMarker(lat, lng) {
+  if (destMarker) map.removeLayer(destMarker);
+  const icon = L.divIcon({
+    className: '',
+    html: '<div class="dest-marker"></div>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+  destMarker = L.marker([lat, lng], { icon }).addTo(map);
+}
+
+// ============ GPS WATCHING ============
+function startWatching() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      myLat = pos.coords.latitude;
+      myLng = pos.coords.longitude;
+      const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+      updateMyMarker();
+      updateSpeedMeter(speed);
+      if (isNavigating) updateNavigation();
+    },
+    null,
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+  );
+}
+
+function updateMyMarker() {
+  if (myMarker) myMarker.setLatLng([myLat, myLng]);
+  if (isNavigating) map.setView([myLat, myLng], 17);
+}
+
+// ============ SPEED METER ============
+function updateSpeedMeter(speed) {
+  document.getElementById('speedNum').textContent = speed;
+  const maxSpeed = 130;
+  const pct = Math.min(speed / maxSpeed, 1);
+  const totalArc = 162;
+  const fill = pct * totalArc;
+  const arc = document.getElementById('speedArc');
+  arc.setAttribute('stroke-dasharray', `${fill} ${190 - fill}`);
+
+  if (speed > speedLimit) {
+    arc.setAttribute('stroke', '#ff6b6b');
+    document.getElementById('speedLimit').setAttribute('fill', '#ff6b6b');
+    document.getElementById('speedLimit').textContent = `מותר ${speedLimit} ⚠️`;
+  } else {
+    arc.setAttribute('stroke', '#5dd6b3');
+    document.getElementById('speedLimit').setAttribute('fill', 'rgba(93,214,179,0.7)');
+    document.getElementById('speedLimit').textContent = `מותר ${speedLimit}`;
+  }
+}
+
+// ============ SEARCH ============
+async function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+  showToast('🔍 מחפש...');
+
+  const lat = myLat || 32.0853;
+  const lng = myLng || 34.7818;
+
+  // Multiple API attempts with CORS proxies
+  const attempts = [
+    // 1. Photon direct
+    () => fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lat=${lat}&lon=${lng}`)
+      .then(r => r.json())
+      .then(d => (d.features||[]).map(f => ({
+        lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+        name: [f.properties.name, f.properties.street, f.properties.housenumber].filter(Boolean).join(' ') || query,
+        city: f.properties.city || f.properties.town || f.properties.village || '',
+        display_name: [f.properties.name, f.properties.street, f.properties.housenumber, f.properties.city, f.properties.country].filter(Boolean).join(', ')
+      }))),
+    // 2. Nominatim via corsproxy
+    () => fetch(`https://corsproxy.io/?https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`)
+      .then(r => r.json())
+      .then(d => d.map(item => ({
+        lat: parseFloat(item.lat), lon: parseFloat(item.lon),
+        name: item.display_name.split(',')[0],
+        city: (item.address&&(item.address.city||item.address.town||item.address.village))||'',
+        display_name: item.display_name
+      }))),
+    // 3. Geoapify free
+    () => fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(query)}&apiKey=&format=json&limit=6`)
+      .then(r => r.json())
+      .then(d => (d.results||[]).map(item => ({
+        lat: item.lat, lon: item.lon,
+        name: item.formatted.split(',')[0],
+        city: item.city || '',
+        display_name: item.formatted
+      })))
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const results = await attempt();
+      if (results && results.length) {
+        showResults(results);
+        return;
+      }
+    } catch(e) { continue; }
+  }
+
+  showToast('❌ חיפוש נכשל — נסה להפעיל מ-HTTPS');
+}
+
+function showResults(data) {
+  const container = document.getElementById('searchResults');
+  if (!data.length) {
+    showToast('לא נמצאו תוצאות');
+    container.style.display = 'none';
+    return;
+  }
+
+  container.innerHTML = '';
+  data.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    const name = item.name || item.display_name.split(',')[0];
+    const addr = item.city || item.display_name.split(',').slice(1, 3).join(',').trim();
+    div.innerHTML = `
+      <div class="result-icon">📍</div>
+      <div>
+        <div class="result-name">${name}</div>
+        <div class="result-addr">${addr}</div>
+      </div>
+    `;
+    div.onclick = () => selectDestination(item.lat, item.lon, item.display_name);
+    container.appendChild(div);
+  });
+
+  container.style.display = 'block';
+}
+
+async function selectDestination(lat, lng, name) {
+  destLat = lat;
+  destLng = lng;
+
+  document.getElementById('searchResults').style.display = 'none';
+  document.getElementById('searchInput').value = name.split(',')[0];
+
+  addDestMarker(lat, lng);
+  map.fitBounds([[myLat, myLng], [lat, lng]], { padding: [80, 80] });
+
+  showToast('📍 מחשב מסלול...');
+  await fetchRoute();
+}
+
+// ============ ROUTING ============
+async function fetchRoute() {
+  if (!myLat || !destLat) return;
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${myLng},${myLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true&annotations=false`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code !== 'Ok' || !data.routes.length) {
+      showToast('❌ לא נמצא מסלול');
+      return;
+    }
+
+    routeData = data.routes[0];
+    drawRoute(routeData.geometry.coordinates);
+    showRoutePanel(routeData);
+
+  } catch(e) {
+    showToast('❌ שגיאת ניווט — בדוק אינטרנט');
+  }
+}
+
+function drawRoute(coords) {
+  if (routeLine) map.removeLayer(routeLine);
+  const latlngs = coords.map(c => [c[1], c[0]]);
+  routeLine = L.polyline(latlngs, {
+    color: '#5dd6b3',
+    weight: 6,
+    opacity: 0.85,
+    lineJoin: 'round',
+    lineCap: 'round',
+  }).addTo(map);
+}
+
+function showRoutePanel(route) {
+  const mins = Math.round(route.duration / 60);
+  const km = (route.distance / 1000).toFixed(1);
+  const eta = new Date(Date.now() + route.duration * 1000);
+  const etaStr = eta.getHours().toString().padStart(2,'0') + ':' + eta.getMinutes().toString().padStart(2,'0');
+
+  document.getElementById('routeTime').textContent = mins;
+  document.getElementById('routeDist').textContent = km;
+  document.getElementById('routeETA').textContent = etaStr;
+  document.getElementById('routePanel').style.display = 'block';
+
+  showToast(`✅ מסלול נמצא — ${mins} דק׳, ${km} ק"מ`);
+}
+
+// ============ NAVIGATION ============
+function startNavigation() {
+  if (!routeData) return;
+
+  isNavigating = true;
+  currentStep = 0;
+  lastSpokenStep = -1;
+
+  document.getElementById('routePanel').style.display = 'none';
+  document.getElementById('topBar').style.display = 'none';
+  document.getElementById('navBar').style.display = 'block';
+  document.getElementById('speedMeter').style.display = 'block';
+
+  map.setView([myLat, myLng], 17);
+  updateNavDisplay();
+
+  speak('מתחיל ניווט. ' + getStepText(0));
+  showToast('🚗 ניווט התחיל!');
+}
+
+function cancelNavigation() {
+  isNavigating = false;
+
+  document.getElementById('navBar').style.display = 'none';
+  document.getElementById('topBar').style.display = 'block';
+  document.getElementById('speedMeter').style.display = 'none';
+  document.getElementById('turnAlert').style.display = 'none';
+
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+
+  document.getElementById('searchInput').value = '';
+  routeData = null;
+  currentStep = 0;
+
+  map.setView([myLat, myLng], 15);
+  showToast('ניווט בוטל');
+}
+
+function updateNavigation() {
+  if (!routeData || !isNavigating) return;
+  const steps = routeData.legs[0].steps;
+  if (currentStep >= steps.length) return;
+
+  const step = steps[currentStep];
+  const stepLat = step.maneuver.location[1];
+  const stepLng = step.maneuver.location[0];
+  const dist = getDistance(myLat, myLng, stepLat, stepLng);
+
+  // Show turn alert when close
+  if (dist < 80 && lastSpokenStep !== currentStep) {
+    lastSpokenStep = currentStep;
+    speak(getStepText(currentStep));
+    showTurnAlert(step, dist);
+  }
+
+  // Move to next step
+  if (dist < 25 && currentStep < steps.length - 1) {
+    currentStep++;
+    hideTurnAlert();
+  }
+
+  // Arrived
+  if (currentStep >= steps.length - 1 && dist < 30) {
+    speak('הגעת ליעד');
+    showToast('🎯 הגעת ליעד!');
+    setTimeout(cancelNavigation, 3000);
+    return;
+  }
+
+  updateNavDisplay();
+}
+
+function updateNavDisplay() {
+  if (!routeData) return;
+  const steps = routeData.legs[0].steps;
+  if (currentStep >= steps.length) return;
+
+  const step = steps[currentStep];
+  const type = step.maneuver.type;
+  const modifier = step.maneuver.modifier || '';
+
+  document.getElementById('navArrow').textContent = getArrow(type, modifier);
+  document.getElementById('navStreet').textContent = getStepText(currentStep);
+
+  const stepDist = step.distance;
+  document.getElementById('navDistance').textContent = formatDist(stepDist);
+
+  // Update ETA
+  const remaining = routeData.legs[0].steps.slice(currentStep).reduce((s, st) => s + st.duration, 0);
+  const eta = new Date(Date.now() + remaining * 1000);
+  const etaStr = eta.getHours().toString().padStart(2,'0') + ':' + eta.getMinutes().toString().padStart(2,'0');
+  document.getElementById('eta').textContent = etaStr;
+  document.getElementById('timeLeft').textContent = Math.round(remaining / 60) + ' דק׳';
+
+  const distRemaining = routeData.legs[0].steps.slice(currentStep).reduce((s, st) => s + st.distance, 0);
+  document.getElementById('distLeft').textContent = (distRemaining / 1000).toFixed(1) + ' ק"מ';
+}
+
+function getArrow(type, modifier) {
+  if (type === 'turn') {
+    if (modifier.includes('right')) return '➡️';
+    if (modifier.includes('left')) return '⬅️';
+    if (modifier.includes('uturn')) return '↩️';
+  }
+  if (type === 'roundabout') return '🔄';
+  if (type === 'arrive') return '🏁';
+  return '⬆️';
+}
+
+function getStepText(idx) {
+  const steps = routeData.legs[0].steps;
+  if (idx >= steps.length) return '';
+  const step = steps[idx];
+  const type = step.maneuver.type;
+  const modifier = step.maneuver.modifier || '';
+  const name = step.name || '';
+
+  if (type === 'arrive') return `הגעת ליעד`;
+  if (type === 'turn') {
+    if (modifier.includes('right')) return `פנה ימינה${name ? ' ל' + name : ''}`;
+    if (modifier.includes('left')) return `פנה שמאלה${name ? ' ל' + name : ''}`;
+    if (modifier.includes('slight right')) return `שמור ימינה`;
+    if (modifier.includes('slight left')) return `שמור שמאלה`;
+    if (modifier.includes('uturn')) return 'בצע פניית פרסה';
+  }
+  if (type === 'roundabout') return 'כנס לכיכר';
+  if (type === 'exit roundabout') return 'צא מהכיכר';
+  if (type === 'merge') return 'התמזג לנתיב';
+  return name ? `המשך על ${name}` : 'המשך ישר';
+}
+
+function showTurnAlert(step, dist) {
+  const type = step.maneuver.type;
+  const modifier = step.maneuver.modifier || '';
+  const alert = document.getElementById('turnAlert');
+  document.getElementById('turnArrow').textContent = getArrow(type, modifier);
+  document.getElementById('turnText').textContent = getStepText(currentStep);
+  document.getElementById('turnDist').textContent = 'בעוד ' + formatDist(dist);
+  alert.style.display = 'flex';
+  if (turnAlertTimeout) clearTimeout(turnAlertTimeout);
+  turnAlertTimeout = setTimeout(hideTurnAlert, 5000);
+
+  // Vibrate
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+function hideTurnAlert() {
+  document.getElementById('turnAlert').style.display = 'none';
+}
+
+// ============ UTILS ============
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function formatDist(m) {
+  if (m >= 1000) return (m/1000).toFixed(1) + ' ק"מ';
+  return Math.round(m) + ' מ׳';
+}
+
+function speak(text) {
+  if (!synth) return;
+  synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'he-IL';
+  utt.rate = 0.95;
+  synth.speak(utt);
+}
+
+function goToMyLocation() {
+  if (myLat) map.setView([myLat, myLng], 16);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => { t.style.opacity = '0'; }, 2500);
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.bottom-btn').forEach(b => b.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  if (tab === 'nav') {
+    if (!isNavigating) document.getElementById('topBar').style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
