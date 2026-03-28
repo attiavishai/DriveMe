@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DriveMe">
+<meta name="theme-color" content="#0a0a0f">
+<title>DriveMe — Driving Together</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+:root {
+  --accent:#5dd6b3; --accent2:#60aed0; --red:#ff6b6b; --yellow:#ffd93d;
+  --bg:rgba(10,10,15,0.95); --surface:rgba(18,18,26,0.97);
+  --border:rgba(255,255,255,0.1); --text:#f0f0ff;
+  --dim:rgba(240,240,255,0.5); --dimmer:rgba(240,240,255,0.25);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:#1a1a2e;color:var(--text);font-family:-apple-system,'Segoe UI',sans-serif;height:100vh;height:100dvh;overflow:hidden;}
+#map{position:absolute;inset:0;z-index:1;}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none!important;}
+
+#loading{position:absolute;inset:0;z-index:999;background:linear-gradient(135deg,#0a0a0f,#1a1a26);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.logo-big{font-size:48px;font-weight:800;letter-spacing:-2px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.tagline-big{font-size:14px;color:var(--dimmer);letter-spacing:2px;}
+.spinner{width:36px;height:36px;border:3px solid rgba(93,214,179,0.2);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-top:8px;}
+.loading-msg{font-size:12px;color:var(--dimmer);}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+#topBar{position:absolute;top:0;left:0;right:0;z-index:100;padding:env(safe-area-inset-top,12px) 12px 0;}
+#searchBox{background:var(--surface);backdrop-filter:blur(20px);border-radius:18px;border:1px solid var(--border);padding:0 14px;display:flex;align-items:center;gap:10px;height:54px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+#searchInput{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:16px;font-family:inherit;text-align:right;}
+#searchInput::placeholder{color:var(--dimmer);}
+#searchBtn{background:var(--accent);color:#000;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;}
+#searchResults{background:var(--surface);backdrop-filter:blur(20px);border-radius:16px;border:1px solid var(--border);margin-top:6px;overflow:hidden;display:none;box-shadow:0 8px 32px rgba(0,0,0,0.5);max-height:320px;overflow-y:auto;}
+.result-item{padding:13px 14px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:10px;}
+.result-item:last-child{border-bottom:none;}
+.result-item:active{background:rgba(93,214,179,0.1);}
+.result-icon{width:34px;height:34px;border-radius:8px;background:rgba(93,214,179,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;}
+.result-name{font-size:13px;font-weight:600;}
+.result-addr{font-size:11px;color:var(--dim);margin-top:2px;}
+
+#navBar{position:absolute;top:0;left:0;right:0;z-index:100;padding:env(safe-area-inset-top,12px) 12px 0;display:none;}
+#navCard{background:var(--surface);backdrop-filter:blur(20px);border-radius:18px;border:1px solid var(--border);padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+#navInstruction{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+#navArrow{width:52px;height:52px;border-radius:13px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:26px;}
+#navText{flex:1;}
+#navDistance{font-size:24px;font-weight:800;color:var(--accent);line-height:1;}
+#navStreet{font-size:12px;color:var(--dim);margin-top:3px;}
+#navStats{display:flex;gap:16px;padding-top:10px;border-top:1px solid var(--border);align-items:center;}
+.nstat-val{font-size:18px;font-weight:800;line-height:1;}
+.nstat-lbl{font-size:10px;color:var(--dimmer);margin-top:2px;text-transform:uppercase;}
+#cancelNav{background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);color:var(--red);border-radius:10px;padding:7px 14px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;margin-right:auto;}
+
+#speedMeter{position:absolute;bottom:110px;left:14px;z-index:100;display:none;}
+
+#routePanel{position:absolute;bottom:90px;left:12px;right:12px;z-index:100;background:var(--surface);backdrop-filter:blur(20px);border:1px solid rgba(93,214,179,0.2);border-radius:18px;padding:16px;display:none;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+.route-stats{display:flex;margin-bottom:14px;}
+.rstat{flex:1;text-align:center;padding:0 8px;border-left:1px solid var(--border);}
+.rstat:first-child{border-left:none;text-align:right;padding-left:0;}
+.rstat:last-child{text-align:left;padding-right:0;}
+.rstat-val{font-size:26px;font-weight:800;color:var(--accent);line-height:1;}
+.rstat-lbl{font-size:10px;color:var(--dimmer);margin-top:3px;text-transform:uppercase;}
+#startNavBtn{width:100%;background:linear-gradient(135deg,var(--accent),#4ab89a);color:#000;border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;}
+
+#turnAlert{position:absolute;inset:0;z-index:200;pointer-events:none;background:rgba(93,214,179,0.1);border:3px solid rgba(93,214,179,0.4);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;animation:flashBorder 1s ease infinite;}
+@keyframes flashBorder{0%,100%{border-color:rgba(93,214,179,0.3);background:rgba(93,214,179,0.08);}50%{border-color:rgba(93,214,179,0.7);background:rgba(93,214,179,0.18);}}
+.turn-arrow{font-size:80px;filter:drop-shadow(0 0 20px rgba(93,214,179,0.8));}
+.turn-lbl{font-size:16px;font-weight:700;color:var(--accent);}
+.turn-dist{font-size:13px;color:var(--dim);}
+
+#bottomBar{position:absolute;bottom:0;left:0;right:0;z-index:100;padding:0 12px env(safe-area-inset-bottom,16px);}
+#bottomCard{background:var(--surface);backdrop-filter:blur(20px);border-radius:20px 20px 16px 16px;border:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-around;align-items:center;box-shadow:0 -8px 32px rgba(0,0,0,0.4);}
+.bBtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 16px;border-radius:12px;cursor:pointer;background:none;border:none;color:var(--dim);font-family:inherit;font-size:10px;font-weight:500;letter-spacing:0.5px;}
+.bBtn.active{color:var(--accent);background:rgba(93,214,179,0.1);}
+.bBtn svg{width:22px;height:22px;}
+
+#locBtn{position:absolute;bottom:105px;right:14px;z-index:100;width:48px;height:48px;border-radius:50%;background:var(--surface);backdrop-filter:blur(10px);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.4);color:var(--accent);}
+
+#settingsPanel{position:absolute;inset:0;z-index:300;background:var(--bg);backdrop-filter:blur(20px);display:none;flex-direction:column;overflow-y:auto;padding:env(safe-area-inset-top,12px) 0 env(safe-area-inset-bottom,16px);}
+.settings-header{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);}
+.settings-title{font-size:20px;font-weight:700;}
+.settings-back{background:none;border:none;color:var(--accent);font-size:16px;font-family:inherit;cursor:pointer;padding:8px;}
+.settings-body{padding:16px;display:flex;flex-direction:column;gap:20px;}
+.s-sec-title{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dimmer);margin-bottom:8px;}
+.s-group{background:rgba(255,255,255,0.05);border-radius:16px;border:1px solid var(--border);overflow:hidden;}
+.s-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);}
+.s-row:last-child{border-bottom:none;}
+.s-left{display:flex;align-items:center;gap:12px;}
+.s-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.s-label{font-size:13px;font-weight:600;}
+.s-sub{font-size:11px;color:var(--dim);margin-top:2px;}
+.toggle{width:44px;height:26px;border-radius:13px;position:relative;cursor:pointer;flex-shrink:0;transition:background 0.2s;}
+.toggle.on{background:var(--accent);}
+.toggle.off{background:rgba(255,255,255,0.15);}
+.toggle-thumb{position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;transition:left 0.2s;box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+.toggle.on .toggle-thumb{left:21px;}
+.toggle.off .toggle-thumb{left:3px;}
+.map-opts{display:flex;gap:8px;padding:12px 16px;}
+.map-opt{flex:1;padding:10px 6px;border-radius:12px;border:2px solid var(--border);background:rgba(255,255,255,0.05);text-align:center;cursor:pointer;font-size:11px;font-weight:600;color:var(--dim);transition:all 0.2s;}
+.map-opt.active{border-color:var(--accent);color:var(--accent);background:rgba(93,214,179,0.1);}
+.map-emoji{font-size:20px;display:block;margin-bottom:4px;}
+
+#toast{position:absolute;bottom:105px;left:50%;transform:translateX(-50%);z-index:400;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 20px;font-size:13px;white-space:nowrap;opacity:0;transition:opacity 0.3s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,0.4);}
+.my-dot{width:20px;height:20px;border-radius:50%;background:var(--accent);border:3px solid white;box-shadow:0 0 0 4px rgba(93,214,179,0.3),0 0 20px rgba(93,214,179,0.5);}
+.dest-dot{width:14px;height:14px;border-radius:50%;background:var(--red);border:3px solid white;box-shadow:0 0 12px rgba(255,107,107,0.5);}
+
+/* ── ATTRACTIONS ── */
+#attractionsBar {
+  position:absolute; top:0; left:0; right:0; z-index:100;
+  padding:env(safe-area-inset-top,12px) 12px 0; display:none;
+}
+#attractionsCard {
+  background:var(--surface); backdrop-filter:blur(20px);
+  border-radius:18px; border:1px solid var(--border);
+  padding:14px 16px; box-shadow:0 8px 32px rgba(0,0,0,0.5);
+}
+.attr-filters {
+  display:flex; gap:8px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px;
+  scrollbar-width:none;
+}
+.attr-filters::-webkit-scrollbar { display:none; }
+.attr-filter-btn {
+  background:rgba(255,255,255,0.07); border:1px solid var(--border);
+  border-radius:20px; padding:6px 12px; font-size:12px; font-weight:600;
+  color:var(--dim); cursor:pointer; white-space:nowrap; font-family:inherit;
+  flex-shrink:0;
+}
+.attr-filter-btn.active { background:rgba(93,214,179,0.15); border-color:var(--accent); color:var(--accent); }
+.attr-price-filters {
+  display:flex; gap:6px; margin-bottom:12px;
+}
+.attr-price-btn {
+  flex:1; background:rgba(255,255,255,0.07); border:1px solid var(--border);
+  border-radius:10px; padding:7px; font-size:12px; font-weight:600;
+  color:var(--dim); cursor:pointer; font-family:inherit; text-align:center;
+}
+.attr-price-btn.active { background:rgba(93,214,179,0.15); border-color:var(--accent); color:var(--accent); }
+.attr-list { display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; }
+.attr-item {
+  background:rgba(255,255,255,0.05); border-radius:12px; padding:12px;
+  display:flex; align-items:center; gap:12px; cursor:pointer;
+  border:1px solid var(--border);
+}
+.attr-item:active { background:rgba(93,214,179,0.1); }
+.attr-emoji { font-size:28px; flex-shrink:0; }
+.attr-info { flex:1; }
+.attr-name { font-size:13px; font-weight:700; }
+.attr-meta { display:flex; gap:8px; margin-top:4px; align-items:center; }
+.attr-dist { font-size:11px; color:var(--dim); }
+.attr-price-tag { font-size:10px; padding:2px 7px; border-radius:6px; font-weight:600; }
+.attr-price-free { background:rgba(93,214,179,0.15); color:var(--accent); }
+.attr-price-paid { background:rgba(255,217,61,0.15); color:var(--yellow); }
+.attr-rating { font-size:11px; color:var(--dim); }
+.attr-detour { font-size:11px; color:rgba(93,214,179,0.7); }
+.attr-empty { text-align:center; padding:24px; color:var(--dimmer); font-size:13px; }
+
+/* ── TRIP START POPUP ── */
+#tripStartPopup {
+  position:absolute; inset:0; z-index:250;
+  background:rgba(0,0,0,0.6); backdrop-filter:blur(4px);
+  display:none; align-items:center; justify-content:center; padding:24px;
+}
+#tripStartCard {
+  background:var(--surface); border-radius:24px; border:1px solid var(--border);
+  padding:24px; width:100%; max-width:360px;
+  box-shadow:0 16px 48px rgba(0,0,0,0.6);
+}
+.tsp-title { font-size:18px; font-weight:800; margin-bottom:4px; }
+.tsp-sub { font-size:12px; color:var(--dim); margin-bottom:20px; }
+.tsp-section { margin-bottom:16px; }
+.tsp-section-title { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dimmer); margin-bottom:8px; }
+.tsp-options { display:flex; gap:8px; }
+.tsp-opt {
+  flex:1; padding:10px 6px; border-radius:12px; border:2px solid var(--border);
+  background:rgba(255,255,255,0.05); text-align:center; cursor:pointer;
+  font-size:12px; font-weight:600; color:var(--dim); transition:all 0.2s;
+}
+.tsp-opt.active { border-color:var(--accent); color:var(--accent); background:rgba(93,214,179,0.1); }
+.tsp-opt .tsp-emoji { font-size:18px; display:block; margin-bottom:3px; }
+#tripStartBtn {
+  width:100%; background:linear-gradient(135deg,var(--accent),#4ab89a);
+  color:#000; border:none; border-radius:14px; padding:15px;
+  font-size:16px; font-weight:700; font-family:inherit; cursor:pointer; margin-top:8px;
+}
+
+.travel-mode-btn {
+  background:rgba(255,255,255,0.07); border:1px solid var(--border);
+  border-radius:10px; padding:6px 12px; font-size:12px; font-weight:600;
+  color:var(--dim); cursor:pointer; font-family:inherit;
+}
+.travel-mode-btn.active { background:rgba(93,214,179,0.15); border-color:var(--accent); color:var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="logo-big">DriveMe</div>
+  <div class="tagline-big">Driving Together</div>
+  <div class="spinner"></div>
+  <div class="loading-msg" id="loadingMsg">מאתר מיקום...</div>
+</div>
+
+<div id="map"></div>
+
+<div id="turnAlert">
+  <div class="turn-arrow" id="turnArrow">➡️</div>
+  <div class="turn-lbl" id="turnText">פנייה ימינה</div>
+  <div class="turn-dist" id="turnDist">בעוד 300 מ׳</div>
+</div>
+
+<div id="topBar">
+  <div id="searchBox">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" placeholder="לאן תרצה לנסוע?" autocomplete="off" autocorrect="off" autocapitalize="off"/>
+    <button id="searchBtn" onclick="doSearch()">חפש</button>
+  </div>
+  <div id="searchResults"></div>
+</div>
+
+<div id="navBar">
+  <div id="navCard">
+    <div id="navInstruction">
+      <div id="navArrow">⬆️</div>
+      <div id="navText">
+        <div id="navDistance">--</div>
+        <div id="navStreet">מחשב מסלול...</div>
+      </div>
+      <button id="cancelNav" onclick="cancelNav()">✕ בטל</button>
+    </div>
+    <div id="navStats">
+      <div><div class="nstat-val" id="eta">--:--</div><div class="nstat-lbl">הגעה</div></div>
+      <div><div class="nstat-val" id="timeLeft">--</div><div class="nstat-lbl">דקות</div></div>
+      <div><div class="nstat-val" id="distLeft">--</div><div class="nstat-lbl">ק"מ</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="speedMeter">
+  <svg width="76" height="76" viewBox="0 0 76 76">
+    <circle cx="38" cy="38" r="34" fill="rgba(10,10,15,0.92)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+    <circle cx="38" cy="38" r="29" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="6" stroke-dasharray="153 26" stroke-dashoffset="42" transform="rotate(135 38 38)"/>
+    <circle cx="38" cy="38" r="29" fill="none" stroke="#5dd6b3" stroke-width="6" stroke-linecap="round" id="speedArc" stroke-dasharray="0 179" stroke-dashoffset="42" transform="rotate(135 38 38)" style="filter:drop-shadow(0 0 4px rgba(93,214,179,0.6));transition:stroke-dasharray 0.5s,stroke 0.3s"/>
+    <text x="38" y="35" text-anchor="middle" font-family="-apple-system" font-weight="700" font-size="18" fill="white" id="speedNum">0</text>
+    <text x="38" y="46" text-anchor="middle" font-family="-apple-system" font-size="9" fill="rgba(255,255,255,0.4)">קמ"ש</text>
+    <text x="38" y="57" text-anchor="middle" font-family="-apple-system" font-size="8" fill="rgba(93,214,179,0.7)" id="speedLimitTxt">מותר 90</text>
+  </svg>
+</div>
+
+<div id="routePanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dimmer);">מסלול מוצע</div>
+    <div style="display:flex;gap:6px;">
+      <button class="travel-mode-btn active" id="modeDrive" onclick="setTravelMode('drive',this)">🚗 נסיעה</button>
+      <button class="travel-mode-btn" id="modeWalk" onclick="setTravelMode('walk',this)">🚶 הליכה</button>
+    </div>
+  </div>
+  <div class="route-stats">
+    <div class="rstat"><div class="rstat-val" id="routeTime">--</div><div class="rstat-lbl">דקות</div></div>
+    <div class="rstat"><div class="rstat-val" id="routeDist">--</div><div class="rstat-lbl">ק"מ</div></div>
+    <div class="rstat"><div class="rstat-val" id="routeEta">--:--</div><div class="rstat-lbl">הגעה</div></div>
+  </div>
+  <button id="startNavBtn" onclick="showTripStartPopup()">🚗 &nbsp; התחל ניווט</button>
+</div>
+
+<div id="locBtn" onclick="goToMe()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+</div>
+
+<div id="bottomBar">
+  <div id="bottomCard">
+    <button class="bBtn active" onclick="setTab('nav',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      ניווט
+    </button>
+    <button class="bBtn" onclick="openAttractions()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      גלה
+    </button>
+    <button class="bBtn" onclick="openSettings()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      הגדרות
+    </button>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settingsPanel">
+  <div class="settings-header">
+    <button class="settings-back" onclick="closeSettings()">← חזור</button>
+    <div class="settings-title">הגדרות</div>
+  </div>
+  <div class="settings-body">
+    <div>
+      <div class="s-sec-title">סגנון מפה</div>
+      <div class="s-group">
+        <div class="map-opts">
+          <div class="map-opt active" id="mapOptSatellite" onclick="setMapStyle('satellite')"><span class="map-emoji">🛰️</span>לוויין</div>
+          <div class="map-opt" id="mapOptStreet" onclick="setMapStyle('street')"><span class="map-emoji">🗺️</span>רחובות</div>
+          <div class="map-opt" id="mapOptDark" onclick="setMapStyle('dark')"><span class="map-emoji">🌙</span>כהה</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="s-sec-title">ניווט</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,217,61,0.1)">💳</div><div><div class="s-label">כבישי אגרה</div><div class="s-sub">אפשר מסלולים בתשלום</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(79,255,176,0.1)">🅿️</div><div><div class="s-label">זמן חניה בהגעה</div><div class="s-sub">הוסף זמן חניה משוערת</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(123,97,255,0.1)">📍</div><div><div class="s-label">היסטוריית חיפוש</div><div class="s-sub">שמור כתובות אחרונות</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="s-sec-title">התראות</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,107,107,0.1)">📷</div><div><div class="s-label">מצלמות מהירות</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,107,107,0.1)">🚦</div><div><div class="s-label">מצלמות רמזור</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,217,61,0.1)">🚌</div><div><div class="s-label">נתיב ציבורי</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(79,255,176,0.1)">🎤</div><div><div class="s-label">דיווח קולי</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="s-sec-title">שירותים בדרך</div>
+      <div class="s-group">
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(79,255,176,0.1)">🕍</div><div><div class="s-label">תפילות ואירועי דת</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,217,61,0.1)">🍽️</div><div><div class="s-label">הנחות ומבצעי אוכל</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(123,97,255,0.1)">🎵</div><div><div class="s-label">אירועים ובידור</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+        <div class="s-row"><div class="s-left"><div class="s-icon" style="background:rgba(255,107,107,0.1)">⛽</div><div><div class="s-label">תחנות דלק זולות</div></div></div><div class="toggle on" onclick="toggleSetting(this)"><div class="toggle-thumb"></div></div></div>
+      </div>
+    </div>
+    <div style="text-align:center;color:var(--dimmer);font-size:11px;padding:8px 0;">DriveMe v3.0 — Driving Together</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
+
+
+// ── TRAVEL MODE ──
+let travelMode = 'drive';
+
+function setTravelMode(mode, el) {
+  travelMode = mode;
+  document.querySelectorAll('.travel-mode-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (destLat) fetchRoute(); // recalculate
+}
+
+// ── ATTRACTIONS ──
+let maxDetour = 1000;
+let priceFilter = 'all';
+let catFilter = 'all';
+
+const ATTRACTIONS_DB = [
+  // טבע ופארקים - חינמי
+  {name:'פארק הירקון', cat:'nature', paid:false, emoji:'🌿', rating:'4.5', desc:'פארק עירוני גדול עם שבילי הליכה'},
+  {name:'שמורת עין גדי', cat:'nature', paid:false, emoji:'🏔️', rating:'4.8', desc:'שמורת טבע עם מפלי מים'},
+  {name:'חוף הים תל אביב', cat:'nature', paid:false, emoji:'🏖️', rating:'4.6', desc:'חופי חול לאורך הים התיכון'},
+  {name:'נחל עורבים', cat:'nature', paid:false, emoji:'🌊', rating:'4.4', desc:'טיול נחל מרהיב'},
+  {name:'יער בן שמן', cat:'nature', paid:false, emoji:'🌲', rating:'4.3', desc:'יער ירוק עם שבילי אופניים'},
+  // טבע - בתשלום
+  {name:'גן לאומי קיסריה', cat:'nature', paid:true, emoji:'🏛️', rating:'4.7', desc:'אתר הכרייה העתיקה'},
+  {name:'ספארי רמת גן', cat:'nature', paid:true, emoji:'🦁', rating:'4.6', desc:'גן חיות ספארי'},
+  {name:'פארק מי עדן', cat:'nature', paid:true, emoji:'💦', rating:'4.5', desc:'פארק מים מרגש'},
+  // תרבות - חינמי
+  {name:'מוזיאון תל אביב לאמנות', cat:'culture', paid:false, emoji:'🎨', rating:'4.5', desc:'ימי כניסה חופשית בימי שישי'},
+  {name:'גן הבהאים חיפה', cat:'culture', paid:false, emoji:'🌺', rating:'4.9', desc:'גנים מדהימים עם נוף לים'},
+  {name:'נמל יפו העתיק', cat:'culture', paid:false, emoji:'⚓', rating:'4.6', desc:'אחד הנמלים העתיקים בעולם'},
+  // תרבות - בתשלום
+  {name:'מוזיאון ישראל', cat:'culture', paid:true, emoji:'🏺', rating:'4.7', desc:'המוזיאון הלאומי של ישראל'},
+  {name:'מוזיאון הרי׳ אנה פרנק', cat:'culture', paid:true, emoji:'📚', rating:'4.8', desc:'מוזיאון שואה ותרבות'},
+  // דתי - חינמי
+  {name:'כותל המערבי', cat:'religion', paid:false, emoji:'🕍', rating:'4.9', desc:'המקום הקדוש ביותר ביהדות'},
+  {name:'כנסיית הקבר', cat:'religion', paid:false, emoji:'⛪', rating:'4.8', desc:'אתר קדוש לנצרות'},
+  {name:'מסגד אל-אקצא', cat:'religion', paid:false, emoji:'🕌', rating:'4.8', desc:'אתר קדוש לאסלאם'},
+  {name:'קבר רחל', cat:'religion', paid:false, emoji:'✡️', rating:'4.7', desc:'אתר עלייה לרגל יהודי'},
+  {name:'כנסיית הבשורה נצרת', cat:'religion', paid:false, emoji:'⛪', rating:'4.6', desc:'כנסייה עתיקה בנצרת'},
+  // אוכל - חינמי
+  {name:'שוק הכרמל', cat:'food', paid:false, emoji:'🧆', rating:'4.5', desc:'שוק אוכל תוסס בתל אביב'},
+  {name:'שוק מחנה יהודה', cat:'food', paid:false, emoji:'🥙', rating:'4.7', desc:'השוק המפורסם של ירושלים'},
+  // אוכל - בתשלום
+  {name:'מסעדת ענבר', cat:'food', paid:true, emoji:'🍽️', rating:'4.6', desc:'מסעדה ים תיכונית מובחרת'},
+  {name:'קפה נמרוד', cat:'food', paid:true, emoji:'☕', rating:'4.4', desc:'בית קפה בוטיק עם נוף מדהים'},
+  // אקסטרים - חינמי
+  {name:'שביל ישראל', cat:'extreme', paid:false, emoji:'🥾', rating:'4.8', desc:'שביל הליכה ארצי'},
+  {name:'נחל פרת', cat:'extreme', paid:false, emoji:'🏊', rating:'4.5', desc:'טיול שחייה בנחל'},
+  // אקסטרים - בתשלום
+  {name:'ריחוף בגליל', cat:'extreme', paid:true, emoji:'🪂', rating:'4.7', desc:'ריחוף פרגלייד'},
+  {name:'צלילה בים סוף', cat:'extreme', paid:true, emoji:'🤿', rating:'4.9', desc:'צלילה בשונית האלמוגים'},
+  {name:'גלישת גלים נתניה', cat:'extreme', paid:true, emoji:'🏄', rating:'4.5', desc:'בית ספר לגלישת גלים'},
+];
+
+function setDetour(val, el) {
+  maxDetour = val;
+  document.querySelectorAll('#detourOpts .tsp-opt').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleTspOpt(el) {
+  el.classList.toggle('active');
+}
+
+function confirmTripStart() {
+  document.getElementById('tripStartPopup').style.display = 'none';
+  startNav();
+}
+
+function showTripStartPopup() {
+  document.getElementById('tripStartPopup').style.display = 'flex';
+}
+
+function openAttractions() {
+  document.getElementById('attractionsBar').style.display = 'block';
+  document.getElementById('topBar').style.display = 'none';
+  renderAttractions();
+}
+
+function closeAttractions() {
+  document.getElementById('attractionsBar').style.display = 'none';
+  document.getElementById('topBar').style.display = 'block';
+}
+
+function setPriceFilter(val, el) {
+  priceFilter = val;
+  document.querySelectorAll('.attr-price-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderAttractions();
+}
+
+function setCatFilter(val, el) {
+  catFilter = val;
+  document.querySelectorAll('.attr-filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderAttractions();
+}
+
+function renderAttractions() {
+  const list = document.getElementById('attrList');
+  let items = ATTRACTIONS_DB;
+
+  // Filter by price
+  if (priceFilter === 'free') items = items.filter(a => !a.paid);
+  if (priceFilter === 'paid') items = items.filter(a => a.paid);
+
+  // Filter by category
+  if (catFilter !== 'all') items = items.filter(a => a.cat === catFilter);
+
+  if (!items.length) {
+    list.innerHTML = '<div class="attr-empty">אין אטרקציות בקטגוריה זו 🔍</div>';
+    return;
+  }
+
+  // Add fake distances based on current location
+  items = items.map(a => ({
+    ...a,
+    fakeDist: Math.round(Math.random() * 15 + 0.5)
+  })).sort((a, b) => a.fakeDist - b.fakeDist);
+
+  list.innerHTML = items.map(a => `
+    <div class="attr-item" onclick="navigateToAttraction('${a.name}')">
+      <div class="attr-emoji">${a.emoji}</div>
+      <div class="attr-info">
+        <div class="attr-name">${a.name}</div>
+        <div class="attr-meta">
+          <span class="attr-dist">📍 ${a.fakeDist} ק"מ</span>
+          <span class="attr-price-tag ${a.paid ? 'attr-price-paid' : 'attr-price-free'}">${a.paid ? '💰 בתשלום' : '✅ חינמי'}</span>
+          <span class="attr-rating">⭐ ${a.rating}</span>
+        </div>
+        <div class="attr-detour">${a.desc}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function navigateToAttraction(name) {
+  closeAttractions();
+  document.getElementById('searchInput').value = name;
+  doSearch();
+}
+
+</script>
+<script>
+let map,myMarker,destMarker,routeLine;
+let myLat=null,myLng=null,destLat=null,destLng=null;
+let routeData=null,isNav=false,watchId=null;
+let currentStep=0,lastSpokenStep=-1,turnAlertTO=null;
+let currentMapStyle='satellite';
+let layerSat,layerLabels,layerStreet,layerDark;
+let synth=window.speechSynthesis;
+
+// History
+function getHistory(){try{return JSON.parse(localStorage.getItem('dm_history')||'[]');}catch(e){return[];}}
+function saveHistory(name,lat,lon){let h=getHistory();h=h.filter(x=>x.name!==name);h.unshift({name,lat,lon});h=h.slice(0,8);try{localStorage.setItem('dm_history',JSON.stringify(h));}catch(e){}}
+function showHistory(){
+  const h=getHistory(),c=document.getElementById('searchResults');
+  if(!h.length){c.style.display='none';return;}
+  c.innerHTML='';
+  h.forEach(item=>{
+    const d=document.createElement('div');d.className='result-item';
+    d.innerHTML=`<div class="result-icon">🕐</div><div><div class="result-name">${item.name}</div><div class="result-addr">חיפוש אחרון</div></div>`;
+    d.onclick=()=>selectDest(item.lat,item.lon,item.name);
+    c.appendChild(d);
+  });
+  c.style.display='block';
+}
+
+// Init
+window.addEventListener('load',init);
+function init(){
+  map=L.map('map',{zoomControl:false,attributionControl:false});
+  initLayers();
+  const saved=getSetting('mapStyle','satellite');
+  setMapStyle(saved);
+
+  if(navigator.geolocation){
+    document.getElementById('loadingMsg').textContent='מבקש גישה למיקום...';
+    navigator.geolocation.getCurrentPosition(
+      pos=>{myLat=pos.coords.latitude;myLng=pos.coords.longitude;map.setView([myLat,myLng],16);addMyMarker();startWatch();hideLoading();},
+      err=>{
+        if(err.code===1)showToast('⚠️ אשר גישה למיקום בהגדרות → Safari → מיקום');
+        else showToast('⚠️ לא ניתן לאתר מיקום');
+        myLat=32.0853;myLng=34.7818;map.setView([myLat,myLng],14);addMyMarker();hideLoading();
+        setTimeout(()=>{if(!watchId)startWatch();},3000);
+      },
+      {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+    );
+  } else {myLat=32.0853;myLng=34.7818;map.setView([myLat,myLng],14);addMyMarker();hideLoading();}
+
+  const inp=document.getElementById('searchInput');
+  inp.addEventListener('focus',()=>{if(!inp.value.trim())showHistory();});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
+  let sTO;
+  inp.addEventListener('input',e=>{
+    const v=e.target.value.trim();
+    if(!v){showHistory();return;}
+    clearTimeout(sTO);if(v.length>=2)sTO=setTimeout(doSearch,700);
+  });
+  document.addEventListener('click',e=>{if(!e.target.closest('#topBar'))document.getElementById('searchResults').style.display='none';});
+}
+
+function initLayers(){
+  layerSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+  layerLabels=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:19,opacity:1});
+  layerStreet=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19});
+  layerDark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19});
+}
+
+function setMapStyle(style){
+  currentMapStyle=style;
+  [layerSat,layerLabels,layerStreet,layerDark].forEach(l=>{if(l&&map.hasLayer(l))map.removeLayer(l);});
+  if(style==='satellite'){layerSat.addTo(map);layerLabels.addTo(map);}
+  else if(style==='street')layerStreet.addTo(map);
+  else if(style==='dark')layerDark.addTo(map);
+  document.querySelectorAll('.map-opt').forEach(el=>el.classList.remove('active'));
+  const el=document.getElementById('mapOpt'+style.charAt(0).toUpperCase()+style.slice(1));
+  if(el)el.classList.add('active');
+  saveSetting('mapStyle',style);
+}
+
+function saveSetting(k,v){try{localStorage.setItem('dm_'+k,v);}catch(e){}}
+function getSetting(k,def){try{return localStorage.getItem('dm_'+k)||def;}catch(e){return def;}}
+
+function hideLoading(){
+  setTimeout(()=>{const l=document.getElementById('loading');l.style.opacity='0';l.style.transition='opacity 0.5s';setTimeout(()=>l.remove(),500);},600);
+}
+
+function addMyMarker(){
+  if(myMarker)map.removeLayer(myMarker);
+  myMarker=L.marker([myLat,myLng],{icon:L.divIcon({className:'',html:'<div class="my-dot"></div>',iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:1000}).addTo(map);
+}
+function addDestMarker(lat,lng){
+  if(destMarker)map.removeLayer(destMarker);
+  destMarker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:'<div class="dest-dot"></div>',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(map);
+}
+
+function startWatch(){
+  if(watchId)navigator.geolocation.clearWatch(watchId);
+  watchId=navigator.geolocation.watchPosition(
+    pos=>{
+      myLat=pos.coords.latitude;myLng=pos.coords.longitude;
+      const spd=pos.coords.speed?Math.round(pos.coords.speed*3.6):0;
+      if(myMarker)myMarker.setLatLng([myLat,myLng]);
+      if(isNav){map.setView([myLat,myLng],17);updateNav();}
+      updateSpeed(spd);
+    },
+    err=>{console.log('Watch:',err.code);},
+    {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
+  );
+}
+
+function updateSpeed(spd){
+  document.getElementById('speedNum').textContent=spd;
+  const limit=90,pct=Math.min(spd/130,1),arc=pct*153;
+  const el=document.getElementById('speedArc');
+  el.setAttribute('stroke-dasharray',`${arc} ${179-arc}`);
+  const over=spd>limit;
+  el.setAttribute('stroke',over?'#ff6b6b':'#5dd6b3');
+  document.getElementById('speedLimitTxt').textContent=`מותר ${limit}${over?' ⚠️':''}`;
+  document.getElementById('speedLimitTxt').setAttribute('fill',over?'#ff6b6b':'rgba(93,214,179,0.7)');
+}
+
+async function doSearch(){
+  const query=document.getElementById('searchInput').value.trim();
+  if(!query)return;
+  showToast('🔍 מחפש...');
+  try{
+    const lat=myLat||32.0853,lng=myLng||34.7818;
+    const res=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lat=${lat}&lon=${lng}`);
+    const data=await res.json();
+    const results=(data.features||[]).map(f=>({
+      lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],
+      name:[f.properties.name,f.properties.street,f.properties.housenumber].filter(Boolean).join(' ')||query,
+      city:f.properties.city||f.properties.town||f.properties.village||f.properties.country||'',
+      display_name:[f.properties.name,f.properties.street,f.properties.housenumber,f.properties.city,f.properties.country].filter(Boolean).join(', ')
+    }));
+    if(results.length)showResults(results);
+    else showToast('לא נמצאו תוצאות');
+  }catch(e){showToast('❌ שגיאת חיפוש — בדוק אינטרנט');}
+}
+
+function showResults(data){
+  const c=document.getElementById('searchResults');
+  c.innerHTML='';
+  data.forEach(item=>{
+    const d=document.createElement('div');d.className='result-item';
+    d.innerHTML=`<div class="result-icon">📍</div><div><div class="result-name">${item.name}</div><div class="result-addr">${item.city}</div></div>`;
+    d.onclick=()=>selectDest(item.lat,item.lon,item.display_name);
+    c.appendChild(d);
+  });
+  c.style.display='block';
+}
+
+async function selectDest(lat,lng,name){
+  destLat=lat;destLng=lng;
+  document.getElementById('searchResults').style.display='none';
+  const shortName=name.split(',')[0];
+  document.getElementById('searchInput').value=shortName;
+  saveHistory(shortName,lat,lng);
+  addDestMarker(lat,lng);
+  map.fitBounds([[myLat,myLng],[lat,lng]],{padding:[80,80]});
+  showToast('📍 מחשב מסלול...');
+  await fetchRoute();
+}
+
+async function fetchRoute(){
+  try{
+    const profile = travelMode === 'walk' ? 'foot' : 'driving';
+    const osrmBase = travelMode === 'walk' 
+      ? 'https://router.project-osrm.org/route/v1/foot'
+      : 'https://router.project-osrm.org/route/v1/driving';
+    const url=`${osrmBase}/${myLng},${myLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
+    const res=await fetch(url);const data=await res.json();
+    if(data.code!=='Ok'||!data.routes.length){showToast('❌ לא נמצא מסלול');return;}
+    routeData=data.routes[0];
+    drawRoute(routeData.geometry.coordinates);
+    showRoutePanel(routeData);
+  }catch(e){showToast('❌ שגיאת ניווט');}
+}
+
+function drawRoute(coords){
+  if(routeLine)map.removeLayer(routeLine);
+  const color = travelMode === 'walk' ? '#ffd93d' : '#5dd6b3';
+  const dash = travelMode === 'walk' ? '8 8' : null;
+  const opts = {color,weight:travelMode==='walk'?4:6,opacity:0.9,lineJoin:'round',lineCap:'round'};
+  if(dash) opts.dashArray = dash;
+  routeLine=L.polyline(coords.map(c=>[c[1],c[0]]),opts).addTo(map);
+}
+
+function showRoutePanel(route){
+  const mins=Math.round(route.duration/60),km=(route.distance/1000).toFixed(1);
+  const eta=new Date(Date.now()+route.duration*1000);
+  const etaStr=eta.getHours().toString().padStart(2,'0')+':'+eta.getMinutes().toString().padStart(2,'0');
+  document.getElementById('routeTime').textContent=mins;
+  document.getElementById('routeDist').textContent=km;
+  document.getElementById('routeEta').textContent=etaStr;
+  const modeIcon = travelMode === 'walk' ? '🚶' : '🚗';
+  const modeText = travelMode === 'walk' ? 'הליכה' : 'נסיעה';
+  document.getElementById('startNavBtn').innerHTML = `${modeIcon} &nbsp; התחל ${modeText}`;
+  document.getElementById('routePanel').style.display='block';
+  const toastIcon = travelMode === 'walk' ? '🚶' : '✅';
+  showToast(`${toastIcon} ${mins} דק׳ · ${km} ק"מ`);
+}
+
+function startNav(){
+  if(!routeData)return;
+  isNav=true;currentStep=0;lastSpokenStep=-1;
+  document.getElementById('routePanel').style.display='none';
+  document.getElementById('topBar').style.display='none';
+  document.getElementById('navBar').style.display='block';
+  document.getElementById('speedMeter').style.display='block';
+  map.setView([myLat,myLng],17);
+  updateNavDisplay();
+  speak('מתחיל ניווט. '+getStepText(0));
+  showToast('🚗 ניווט התחיל!');
+}
+
+function cancelNav(){
+  isNav=false;
+  document.getElementById('navBar').style.display='none';
+  document.getElementById('topBar').style.display='block';
+  document.getElementById('speedMeter').style.display='none';
+  document.getElementById('turnAlert').style.display='none';
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  if(destMarker){map.removeLayer(destMarker);destMarker=null;}
+  document.getElementById('searchInput').value='';
+  routeData=null;currentStep=0;
+  map.setView([myLat,myLng],15);
+  showToast('ניווט בוטל');
+}
+
+function updateNav(){
+  if(!routeData||!isNav)return;
+  const steps=routeData.legs[0].steps;
+  if(currentStep>=steps.length)return;
+  const step=steps[currentStep];
+  const dist=getDist(myLat,myLng,step.maneuver.location[1],step.maneuver.location[0]);
+  if(dist<80&&lastSpokenStep!==currentStep){lastSpokenStep=currentStep;speak(getStepText(currentStep));showTurnAlert(step,dist);}
+  if(dist<25&&currentStep<steps.length-1){currentStep++;hideTurnAlert();}
+  if(currentStep>=steps.length-1&&dist<30){speak('הגעת ליעד');showToast('🎯 הגעת ליעד!');setTimeout(cancelNav,3000);return;}
+  updateNavDisplay();
+}
+
+function updateNavDisplay(){
+  if(!routeData)return;
+  const steps=routeData.legs[0].steps;
+  if(currentStep>=steps.length)return;
+  const step=steps[currentStep];
+  document.getElementById('navArrow').textContent=getArrow(step.maneuver.type,step.maneuver.modifier||'');
+  document.getElementById('navStreet').textContent=getStepText(currentStep);
+  document.getElementById('navDistance').textContent=fmtDist(step.distance);
+  const rem=steps.slice(currentStep).reduce((s,st)=>s+st.duration,0);
+  const eta=new Date(Date.now()+rem*1000);
+  document.getElementById('eta').textContent=eta.getHours().toString().padStart(2,'0')+':'+eta.getMinutes().toString().padStart(2,'0');
+  document.getElementById('timeLeft').textContent=Math.round(rem/60)+' דק׳';
+  document.getElementById('distLeft').textContent=(steps.slice(currentStep).reduce((s,st)=>s+st.distance,0)/1000).toFixed(1)+' ק"מ';
+}
+
+function getArrow(type,mod){
+  if(type==='turn'){if(mod.includes('right'))return'➡️';if(mod.includes('left'))return'⬅️';if(mod.includes('uturn'))return'↩️';}
+  if(type==='roundabout')return'🔄';if(type==='arrive')return'🏁';return'⬆️';
+}
+function getStepText(idx){
+  const steps=routeData.legs[0].steps;if(idx>=steps.length)return'';
+  const s=steps[idx],t=s.maneuver.type,m=s.maneuver.modifier||'',n=s.name||'';
+  if(t==='arrive')return'הגעת ליעד';
+  if(t==='turn'){if(m.includes('right'))return`פנה ימינה${n?' ל'+n:''}`;if(m.includes('left'))return`פנה שמאלה${n?' ל'+n:''}`;if(m.includes('uturn'))return'בצע פניית פרסה';}
+  if(t==='roundabout')return'כנס לכיכר';if(t==='exit roundabout')return'צא מהכיכר';
+  return n?`המשך על ${n}`:'המשך ישר';
+}
+
+function showTurnAlert(step,dist){
+  const a=document.getElementById('turnAlert');
+  document.getElementById('turnArrow').textContent=getArrow(step.maneuver.type,step.maneuver.modifier||'');
+  document.getElementById('turnText').textContent=getStepText(currentStep);
+  document.getElementById('turnDist').textContent='בעוד '+fmtDist(dist);
+  a.style.display='flex';
+  if(turnAlertTO)clearTimeout(turnAlertTO);
+  turnAlertTO=setTimeout(hideTurnAlert,5000);
+  if(navigator.vibrate)navigator.vibrate([200,100,200]);
+}
+function hideTurnAlert(){document.getElementById('turnAlert').style.display='none';}
+
+function getDist(a,b,c,d){const R=6371000,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function fmtDist(m){return m>=1000?(m/1000).toFixed(1)+' ק"מ':Math.round(m)+' מ׳';}
+function speak(text){if(!synth)return;synth.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='he-IL';u.rate=0.95;synth.speak(u);}
+function goToMe(){if(myLat)map.setView([myLat,myLng],16);}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
+function setTab(tab,btn){document.querySelectorAll('.bBtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(tab==='nav'&&!isNav)document.getElementById('topBar').style.display='block';}
+function openSettings(){document.getElementById('settingsPanel').style.display='flex';}
+function closeSettings(){document.getElementById('settingsPanel').style.display='none';}
+function toggleSetting(el){el.classList.toggle('on');el.classList.toggle('off');}
+</script>
+
+<!-- Attractions bar -->
+<div id="attractionsBar">
+  <div id="attractionsCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:700;">אטרקציות בדרך</div>
+      <button onclick="closeAttractions()" style="background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div class="attr-price-filters">
+      <button class="attr-price-btn active" onclick="setPriceFilter('all',this)">🌐 הכל</button>
+      <button class="attr-price-btn" onclick="setPriceFilter('free',this)">✅ חינמי</button>
+      <button class="attr-price-btn" onclick="setPriceFilter('paid',this)">💰 בתשלום</button>
+    </div>
+    <div class="attr-filters" id="attrCategoryFilters">
+      <button class="attr-filter-btn active" onclick="setCatFilter('all',this)">🗺️ הכל</button>
+      <button class="attr-filter-btn" onclick="setCatFilter('nature',this)">🌿 טבע</button>
+      <button class="attr-filter-btn" onclick="setCatFilter('culture',this)">🏛️ תרבות</button>
+      <button class="attr-filter-btn" onclick="setCatFilter('religion',this)">🕍 דתי</button>
+      <button class="attr-filter-btn" onclick="setCatFilter('food',this)">🍽️ אוכל</button>
+      <button class="attr-filter-btn" onclick="setCatFilter('extreme',this)">🏄 אקסטרים</button>
+    </div>
+    <div class="attr-list" id="attrList">
+      <div class="attr-empty">חפש יעד ← התחל ניווט ← ראה אטרקציות 🗺️</div>
+    </div>
+  </div>
+</div>
+
+<!-- Trip start popup -->
+<div id="tripStartPopup">
+  <div id="tripStartCard">
+    <div class="tsp-title">הגדרות נסיעה 🚗</div>
+    <div class="tsp-sub">התאם את הנסיעה שלך לפני שתצא</div>
+    <div class="tsp-section">
+      <div class="tsp-section-title">סטייה מקסימלית לאטרקציות</div>
+      <div class="tsp-options" id="detourOpts">
+        <div class="tsp-opt" onclick="setDetour(0,this)"><span class="tsp-emoji">🚫</span>ללא</div>
+        <div class="tsp-opt" onclick="setDetour(500,this)"><span class="tsp-emoji">📍</span>500מ׳</div>
+        <div class="tsp-opt active" onclick="setDetour(1000,this)"><span class="tsp-emoji">🗺️</span>1ק"מ</div>
+        <div class="tsp-opt" onclick="setDetour(5000,this)"><span class="tsp-emoji">🌍</span>5ק"מ</div>
+      </div>
+    </div>
+    <div class="tsp-section">
+      <div class="tsp-section-title">סוג אטרקציות</div>
+      <div class="tsp-options">
+        <div class="tsp-opt active" onclick="toggleTspOpt(this)" data-val="free"><span class="tsp-emoji">✅</span>חינמי</div>
+        <div class="tsp-opt active" onclick="toggleTspOpt(this)" data-val="paid"><span class="tsp-emoji">💰</span>בתשלום</div>
+      </div>
+    </div>
+    <button id="tripStartBtn" onclick="confirmTripStart()">🚗 &nbsp; התחל נסיעה!</button>
+  </div>
+</div>
+</body>
+</html>
