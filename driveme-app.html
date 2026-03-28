@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -50,8 +50,11 @@
   .leaflet-control-attribution { display: none !important; }
   .leaflet-control-zoom { display: none !important; }
 
-  /* Dark map filter */
+  /* Auto day/night map */
   .leaflet-tile-pane {
+    transition: filter 0.5s;
+  }
+  .leaflet-tile-pane.night-mode {
     filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.9);
   }
 
@@ -660,6 +663,20 @@ let synth = window.speechSynthesis;
 let lastSpokenStep = -1;
 let turnAlertTimeout = null;
 
+// ============ DAY/NIGHT MODE ============
+function updateDayNight() {
+  const hour = new Date().getHours();
+  const isNight = hour >= 20 || hour < 6;
+  const pane = document.querySelector('.leaflet-tile-pane');
+  if (pane) {
+    if (isNight) {
+      pane.classList.add('night-mode');
+    } else {
+      pane.classList.remove('night-mode');
+    }
+  }
+}
+
 // ============ INIT ============
 window.addEventListener('load', initApp);
 
@@ -674,6 +691,10 @@ function initApp() {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
   }).addTo(map);
+
+  // Day/night mode
+  updateDayNight();
+  setInterval(updateDayNight, 60000);
 
   // Get location
   if (navigator.geolocation) {
@@ -1131,3 +1152,4 @@ function setTab(tab) {
 </script>
 </body>
 </html>
+
