@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DriveMe">
+<meta name="theme-color" content="#0a0a0f">
+<title>DriveMe</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:#111; color:#f0f0ff; font-family:-apple-system,sans-serif; height:100vh; overflow:hidden; }
+#map { position:absolute; top:0; left:0; right:0; bottom:0; z-index:1; }
+.leaflet-control-attribution,.leaflet-control-zoom { display:none!important; }
+
+/* Loading */
+#loading { position:absolute; top:0; left:0; right:0; bottom:0; z-index:999; background:#0a0a0f; display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; gap:16px; }
+.logo { font-size:46px; font-weight:800; letter-spacing:-2px; color:#5dd6b3; }
+.tagline { font-size:13px; color:rgba(240,240,255,0.3); letter-spacing:2px; }
+.spin { width:34px; height:34px; border:3px solid rgba(93,214,179,0.2); border-top-color:#5dd6b3; border-radius:50%; -webkit-animation:spin 0.8s linear infinite; animation:spin 0.8s linear infinite; }
+@-webkit-keyframes spin { to { -webkit-transform:rotate(360deg); } }
+@keyframes spin { to { transform:rotate(360deg); } }
+#loadMsg { font-size:12px; color:rgba(240,240,255,0.3); }
+
+/* Top search */
+#topBar { position:absolute; top:0; left:0; right:0; z-index:100; padding:44px 12px 0; }
+#searchBox { background:rgba(18,18,26,0.97); border-radius:16px; border:1px solid rgba(255,255,255,0.1); padding:0 14px; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:10px; height:52px; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+#searchInput { -webkit-flex:1; flex:1; background:none; border:none; outline:none; color:#f0f0ff; font-size:16px; font-family:inherit; text-align:right; }
+#searchInput::-webkit-input-placeholder { color:rgba(240,240,255,0.25); }
+#searchBtn { background:#5dd6b3; color:#000; border:none; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+#results { background:rgba(18,18,26,0.98); border-radius:14px; border:1px solid rgba(255,255,255,0.1); margin-top:6px; display:none; max-height:300px; overflow-y:auto; }
+.ri { padding:13px 14px; border-bottom:1px solid rgba(255,255,255,0.07); display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:10px; cursor:pointer; }
+.ri:last-child { border-bottom:none; }
+.ri-icon { width:32px; height:32px; border-radius:8px; background:rgba(93,214,179,0.1); display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.ri-name { font-size:13px; font-weight:600; }
+.ri-addr { font-size:11px; color:rgba(240,240,255,0.5); margin-top:2px; }
+
+/* Nav bar */
+#navBar { position:absolute; top:0; left:0; right:0; z-index:100; padding:44px 12px 0; display:none; }
+#navCard { background:rgba(18,18,26,0.97); border-radius:16px; border:1px solid rgba(255,255,255,0.1); padding:14px 16px; }
+#navRow { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:12px; margin-bottom:10px; }
+#navArrow { width:50px; height:50px; border-radius:12px; background:#5dd6b3; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; font-size:24px; flex-shrink:0; }
+#navDist { font-size:22px; font-weight:800; color:#5dd6b3; }
+#navStreet { font-size:12px; color:rgba(240,240,255,0.5); margin-top:3px; }
+#navStats { display:-webkit-flex; display:flex; gap:16px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08); -webkit-align-items:center; align-items:center; }
+.ns-val { font-size:17px; font-weight:800; }
+.ns-lbl { font-size:10px; color:rgba(240,240,255,0.3); margin-top:2px; text-transform:uppercase; }
+#cancelBtn { background:rgba(255,107,107,0.15); border:1px solid rgba(255,107,107,0.3); color:#ff6b6b; border-radius:10px; padding:7px 12px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; margin-right:auto; }
+
+/* Route panel */
+#routePanel { position:absolute; bottom:90px; left:12px; right:12px; z-index:100; background:rgba(18,18,26,0.97); border:1px solid rgba(93,214,179,0.2); border-radius:18px; padding:16px; display:none; }
+.rs { display:-webkit-flex; display:flex; margin-bottom:14px; }
+.rsv { -webkit-flex:1; flex:1; text-align:center; padding:0 8px; border-left:1px solid rgba(255,255,255,0.08); }
+.rsv:first-child { border-left:none; text-align:right; padding-left:0; }
+.rsv:last-child { text-align:left; padding-right:0; }
+.rsv-n { font-size:26px; font-weight:800; color:#5dd6b3; }
+.rsv-l { font-size:10px; color:rgba(240,240,255,0.3); margin-top:3px; text-transform:uppercase; }
+
+/* Travel mode */
+.mode-btns { display:-webkit-flex; display:flex; gap:8px; margin-bottom:12px; }
+.mode-btn { -webkit-flex:1; flex:1; padding:8px; border-radius:10px; border:1.5px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); font-size:12px; font-weight:600; color:rgba(240,240,255,0.5); font-family:inherit; cursor:pointer; }
+.mode-btn.active { border-color:#5dd6b3; color:#5dd6b3; background:rgba(93,214,179,0.1); }
+
+#startBtn { width:100%; background:#5dd6b3; color:#000; border:none; border-radius:14px; padding:15px; font-size:16px; font-weight:700; font-family:inherit; cursor:pointer; }
+
+/* Speed */
+#speed { position:absolute; bottom:110px; left:14px; z-index:100; display:none; }
+
+/* Loc btn */
+#locBtn { position:absolute; bottom:105px; right:14px; z-index:100; width:48px; height:48px; border-radius:50%; background:rgba(18,18,26,0.95); border:1px solid rgba(255,255,255,0.1); display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; cursor:pointer; color:#5dd6b3; }
+
+/* Bottom */
+#bottomBar { position:absolute; bottom:0; left:0; right:0; z-index:100; padding:0 12px 16px; }
+#bottomCard { background:rgba(18,18,26,0.97); border-radius:20px 20px 16px 16px; border:1px solid rgba(255,255,255,0.1); padding:10px 20px; display:-webkit-flex; display:flex; -webkit-justify-content:space-around; justify-content:space-around; -webkit-align-items:center; align-items:center; }
+.bb { display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; -webkit-align-items:center; align-items:center; gap:4px; padding:8px 16px; border-radius:12px; background:none; border:none; color:rgba(240,240,255,0.5); font-family:inherit; font-size:10px; font-weight:500; cursor:pointer; }
+.bb.active { color:#5dd6b3; background:rgba(93,214,179,0.1); }
+.bb svg { width:22px; height:22px; }
+
+/* Settings */
+#settingsPanel { position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(10,10,15,0.97); display:none; -webkit-flex-direction:column; flex-direction:column; overflow-y:auto; padding:44px 0 16px; }
+.sp-hdr { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.sp-back { background:none; border:none; color:#5dd6b3; font-size:16px; font-family:inherit; cursor:pointer; padding:8px; }
+.sp-title { font-size:20px; font-weight:700; }
+.sp-body { padding:16px; display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; gap:20px; }
+.sec-title { font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:rgba(240,240,255,0.25); margin-bottom:8px; }
+.sp-group { background:rgba(255,255,255,0.04); border-radius:16px; border:1px solid rgba(255,255,255,0.08); overflow:hidden; }
+.sp-row { display:-webkit-flex; display:flex; -webkit-justify-content:space-between; justify-content:space-between; -webkit-align-items:center; align-items:center; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.sp-row:last-child { border-bottom:none; }
+.sp-left { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:12px; }
+.sp-ico { width:34px; height:34px; border-radius:10px; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; font-size:16px; }
+.sp-lbl { font-size:13px; font-weight:600; }
+.sp-sub { font-size:11px; color:rgba(240,240,255,0.4); margin-top:2px; }
+.tgl { width:44px; height:26px; border-radius:13px; position:relative; cursor:pointer; flex-shrink:0; }
+.tgl.on { background:#5dd6b3; }
+.tgl.off { background:rgba(255,255,255,0.15); }
+.tgl-t { position:absolute; width:20px; height:20px; border-radius:50%; background:#fff; top:3px; }
+.tgl.on .tgl-t { left:21px; }
+.tgl.off .tgl-t { left:3px; }
+.map-opts { display:-webkit-flex; display:flex; gap:8px; padding:12px 16px; }
+.map-opt { -webkit-flex:1; flex:1; padding:10px 6px; border-radius:12px; border:2px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); text-align:center; cursor:pointer; font-size:11px; font-weight:600; color:rgba(240,240,255,0.4); }
+.map-opt.active { border-color:#5dd6b3; color:#5dd6b3; background:rgba(93,214,179,0.1); }
+.map-emoji { font-size:20px; display:block; margin-bottom:4px; }
+
+/* Attractions */
+#attrPanel { position:absolute; top:0; left:0; right:0; bottom:0; z-index:300; background:rgba(10,10,15,0.97); display:none; -webkit-flex-direction:column; flex-direction:column; overflow-y:auto; padding:44px 0 16px; }
+.ap-hdr { display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.ap-back { background:none; border:none; color:#5dd6b3; font-size:16px; font-family:inherit; cursor:pointer; padding:8px; }
+.ap-title { font-size:20px; font-weight:700; }
+.ap-body { padding:16px; display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; gap:12px; }
+.price-btns { display:-webkit-flex; display:flex; gap:8px; }
+.price-btn { -webkit-flex:1; flex:1; padding:10px 8px; border-radius:12px; border:1.5px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); font-size:12px; font-weight:600; color:rgba(240,240,255,0.4); font-family:inherit; cursor:pointer; }
+.price-btn.active { border-color:#5dd6b3; color:#5dd6b3; background:rgba(93,214,179,0.1); }
+.cat-scroll { display:-webkit-flex; display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+.cat-scroll::-webkit-scrollbar { display:none; }
+.cat-btn { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:6px 14px; font-size:12px; font-weight:600; color:rgba(240,240,255,0.4); cursor:pointer; white-space:nowrap; font-family:inherit; flex-shrink:0; border:none; }
+.cat-btn.active { background:rgba(93,214,179,0.15); color:#5dd6b3; }
+#attrList { display:-webkit-flex; display:flex; -webkit-flex-direction:column; flex-direction:column; gap:8px; }
+.attr-card { background:rgba(255,255,255,0.04); border-radius:14px; padding:14px; display:-webkit-flex; display:flex; -webkit-align-items:center; align-items:center; gap:12px; border:1px solid rgba(255,255,255,0.07); cursor:pointer; }
+.attr-emoji { font-size:28px; flex-shrink:0; }
+.attr-name { font-size:13px; font-weight:700; }
+.attr-meta { display:-webkit-flex; display:flex; gap:8px; margin-top:5px; -webkit-flex-wrap:wrap; flex-wrap:wrap; }
+.attr-dist { font-size:11px; color:rgba(240,240,255,0.5); }
+.attr-tag { font-size:10px; padding:2px 8px; border-radius:6px; font-weight:600; }
+.tag-free { background:rgba(93,214,179,0.15); color:#5dd6b3; }
+.tag-paid { background:rgba(255,217,61,0.15); color:#ffd93d; }
+.attr-rat { font-size:11px; color:rgba(240,240,255,0.5); }
+.attr-desc { font-size:11px; color:rgba(93,214,179,0.7); margin-top:3px; }
+.attr-empty { text-align:center; padding:30px; color:rgba(240,240,255,0.3); font-size:13px; }
+
+/* Turn alert */
+#turnAlert { position:absolute; top:0; left:0; right:0; bottom:0; z-index:200; pointer-events:none; display:none; -webkit-flex-direction:column; flex-direction:column; -webkit-align-items:center; align-items:center; -webkit-justify-content:center; justify-content:center; gap:10px; background:rgba(93,214,179,0.1); border:3px solid rgba(93,214,179,0.4); }
+.ta-arrow { font-size:80px; }
+.ta-lbl { font-size:16px; font-weight:700; color:#5dd6b3; }
+.ta-dist { font-size:13px; color:rgba(240,240,255,0.5); }
+
+/* Toast */
+#toast { position:absolute; bottom:105px; left:50%; -webkit-transform:translateX(-50%); transform:translateX(-50%); z-index:400; background:rgba(18,18,26,0.97); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 20px; font-size:13px; white-space:nowrap; opacity:0; pointer-events:none; }
+
+/* Markers */
+.my-dot { width:20px; height:20px; border-radius:50%; background:#5dd6b3; border:3px solid white; box-shadow:0 0 0 4px rgba(93,214,179,0.3); }
+.dest-dot { width:14px; height:14px; border-radius:50%; background:#ff6b6b; border:3px solid white; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="logo">DriveMe</div>
+  <div class="tagline">Driving Together</div>
+  <div class="spin"></div>
+  <div id="loadMsg">מאתר מיקום...</div>
+</div>
+
+<div id="map"></div>
+
+<div id="turnAlert">
+  <div class="ta-arrow" id="taArrow">➡️</div>
+  <div class="ta-lbl" id="taText">פנה ימינה</div>
+  <div class="ta-dist" id="taDist">בעוד 300 מ׳</div>
+</div>
+
+<div id="topBar">
+  <div id="searchBox">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" placeholder="לאן תרצה לנסוע?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+    <button id="searchBtn">חפש</button>
+  </div>
+  <div id="results"></div>
+</div>
+
+<div id="navBar">
+  <div id="navCard">
+    <div id="navRow">
+      <div id="navArrow">⬆️</div>
+      <div style="flex:1">
+        <div id="navDist">--</div>
+        <div id="navStreet">מחשב...</div>
+      </div>
+      <button id="cancelBtn">✕ בטל</button>
+    </div>
+    <div id="navStats">
+      <div><div class="ns-val" id="navEta">--:--</div><div class="ns-lbl">הגעה</div></div>
+      <div><div class="ns-val" id="navTime">--</div><div class="ns-lbl">דקות</div></div>
+      <div><div class="ns-val" id="navDist2">--</div><div class="ns-lbl">ק"מ</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="speed">
+  <svg width="76" height="76" viewBox="0 0 76 76">
+    <circle cx="38" cy="38" r="34" fill="rgba(10,10,15,0.93)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+    <circle cx="38" cy="38" r="29" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" stroke-dasharray="153 26" stroke-dashoffset="42" transform="rotate(135 38 38)"/>
+    <circle cx="38" cy="38" r="29" fill="none" stroke="#5dd6b3" stroke-width="6" stroke-linecap="round" id="spdArc" stroke-dasharray="0 179" stroke-dashoffset="42" transform="rotate(135 38 38)"/>
+    <text x="38" y="35" text-anchor="middle" font-family="-apple-system" font-weight="700" font-size="18" fill="white" id="spdNum">0</text>
+    <text x="38" y="46" text-anchor="middle" font-family="-apple-system" font-size="9" fill="rgba(255,255,255,0.4)">קמ"ש</text>
+    <text x="38" y="57" text-anchor="middle" font-family="-apple-system" font-size="8" fill="rgba(93,214,179,0.7)" id="spdLim">מותר 90</text>
+  </svg>
+</div>
+
+<div id="routePanel">
+  <div class="mode-btns">
+    <button class="mode-btn active" id="modeDrive" onclick="setMode('drive')">🚗 נסיעה</button>
+    <button class="mode-btn" id="modeWalk" onclick="setMode('walk')">🚶 הליכה</button>
+  </div>
+  <div class="rs">
+    <div class="rsv"><div class="rsv-n" id="rtTime">--</div><div class="rsv-l">דקות</div></div>
+    <div class="rsv"><div class="rsv-n" id="rtDist">--</div><div class="rsv-l">ק"מ</div></div>
+    <div class="rsv"><div class="rsv-n" id="rtEta">--:--</div><div class="rsv-l">הגעה</div></div>
+  </div>
+  <button id="startBtn" onclick="startNav()">🚗 &nbsp; התחל ניווט</button>
+</div>
+
+<div id="locBtn" onclick="goToMe()">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+</div>
+
+<div id="bottomBar">
+  <div id="bottomCard">
+    <button class="bb active" id="bbNav" onclick="showNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      ניווט
+    </button>
+    <button class="bb" id="bbDiscover" onclick="openAttr(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      גלה
+    </button>
+    <button class="bb" id="bbSettings" onclick="openSettings(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      הגדרות
+    </button>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settingsPanel">
+  <div class="sp-hdr">
+    <button class="sp-back" onclick="closeSettings()">← חזור</button>
+    <div class="sp-title">הגדרות</div>
+  </div>
+  <div class="sp-body">
+    <div>
+      <div class="sec-title">סגנון מפה</div>
+      <div class="sp-group">
+        <div class="map-opts">
+          <div class="map-opt active" id="mopSat" onclick="setMap('sat')"><span class="map-emoji">🛰️</span>לוויין</div>
+          <div class="map-opt" id="mopStr" onclick="setMap('str')"><span class="map-emoji">🗺️</span>רחובות</div>
+          <div class="map-opt" id="mopDark" onclick="setMap('dark')"><span class="map-emoji">🌙</span>כהה</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">ניווט</div>
+      <div class="sp-group">
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,217,61,0.1)">💳</div><div><div class="sp-lbl">כבישי אגרה</div><div class="sp-sub">אפשר מסלולים בתשלום</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(79,255,176,0.1)">🅿️</div><div><div class="sp-lbl">זמן חניה בהגעה</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(123,97,255,0.1)">📍</div><div><div class="sp-lbl">היסטוריית חיפוש</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">התראות</div>
+      <div class="sp-group">
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,107,107,0.1)">📷</div><div><div class="sp-lbl">מצלמות מהירות</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,107,107,0.1)">🚦</div><div><div class="sp-lbl">מצלמות רמזור</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,217,61,0.1)">🚌</div><div><div class="sp-lbl">נתיב ציבורי</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(79,255,176,0.1)">🎤</div><div><div class="sp-lbl">דיווח קולי</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">שירותים בדרך</div>
+      <div class="sp-group">
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(79,255,176,0.1)">🕍</div><div><div class="sp-lbl">תפילות ואירועי דת</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,217,61,0.1)">🍽️</div><div><div class="sp-lbl">הנחות ומבצעי אוכל</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(123,97,255,0.1)">🎵</div><div><div class="sp-lbl">אירועים ובידור</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+        <div class="sp-row"><div class="sp-left"><div class="sp-ico" style="background:rgba(255,107,107,0.1)">⛽</div><div><div class="sp-lbl">תחנות דלק זולות</div></div></div><div class="tgl on" onclick="tgl(this)"><div class="tgl-t"></div></div></div>
+      </div>
+    </div>
+    <div style="text-align:center;color:rgba(240,240,255,0.2);font-size:11px;padding:8px 0;">DriveMe v4.0 — Driving Together</div>
+  </div>
+</div>
+
+<!-- Attractions Panel -->
+<div id="attrPanel">
+  <div class="ap-hdr">
+    <button class="ap-back" onclick="closeAttr()">← חזור</button>
+    <div class="ap-title">אטרקציות בדרך 🗺️</div>
+  </div>
+  <div class="ap-body">
+    <div class="price-btns">
+      <button class="price-btn active" id="pAll" onclick="setPriceF('all',this)">🌐 הכל</button>
+      <button class="price-btn" id="pFree" onclick="setPriceF('free',this)">✅ חינמי</button>
+      <button class="price-btn" id="pPaid" onclick="setPriceF('paid',this)">💰 בתשלום</button>
+    </div>
+    <div class="cat-scroll">
+      <button class="cat-btn active" onclick="setCatF('all',this)">🗺️ הכל</button>
+      <button class="cat-btn" onclick="setCatF('nature',this)">🌿 טבע</button>
+      <button class="cat-btn" onclick="setCatF('culture',this)">🏛️ תרבות</button>
+      <button class="cat-btn" onclick="setCatF('religion',this)">🕍 דתי</button>
+      <button class="cat-btn" onclick="setCatF('food',this)">🍽️ אוכל</button>
+      <button class="cat-btn" onclick="setCatF('extreme',this)">🏄 אקסטרים</button>
+    </div>
+    <div id="attrList"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// State
+var map, myMarker, destMarker, routeLine;
+var myLat = null, myLng = null, destLat = null, destLng = null;
+var routeData = null, isNav = false, watchId = null;
+var curStep = 0, lastSpoken = -1, taTO = null;
+var travelMode = 'drive';
+var priceFilter = 'all', catFilter = 'all';
+var mapStyle = 'sat';
+var lSat, lLabels, lStr, lDark;
+var synth = window.speechSynthesis;
+
+// Attractions data
+var ATTRS = [
+  {n:'פארק הירקון',c:'nature',paid:false,e:'🌿',r:'4.5',d:'פארק עירוני גדול'},
+  {n:'שמורת עין גדי',c:'nature',paid:false,e:'🏔️',r:'4.8',d:'מפלי מים ושמורת טבע'},
+  {n:'חוף הים תל אביב',c:'nature',paid:false,e:'🏖️',r:'4.6',d:'חופי חול על הים התיכון'},
+  {n:'נחל עורבים',c:'nature',paid:false,e:'🌊',r:'4.4',d:'טיול נחל מרהיב'},
+  {n:'יער בן שמן',c:'nature',paid:false,e:'🌲',r:'4.3',d:'יער עם שבילי אופניים'},
+  {n:'ספארי רמת גן',c:'nature',paid:true,e:'🦁',r:'4.6',d:'גן חיות ספארי'},
+  {n:'פארק מי עדן',c:'nature',paid:true,e:'💦',r:'4.5',d:'פארק מים מרגש'},
+  {n:'גן הבהאים חיפה',c:'culture',paid:false,e:'🌺',r:'4.9',d:'גנים עם נוף לים'},
+  {n:'נמל יפו העתיק',c:'culture',paid:false,e:'⚓',r:'4.6',d:'אחד הנמלים העתיקים בעולם'},
+  {n:'מוזיאון ישראל',c:'culture',paid:true,e:'🏺',r:'4.7',d:'המוזיאון הלאומי'},
+  {n:'כותל המערבי',c:'religion',paid:false,e:'🕍',r:'4.9',d:'המקום הקדוש ביהדות'},
+  {n:'כנסיית הקבר',c:'religion',paid:false,e:'⛪',r:'4.8',d:'אתר קדוש לנצרות'},
+  {n:'קבר רחל',c:'religion',paid:false,e:'✡️',r:'4.7',d:'אתר עלייה לרגל'},
+  {n:'כנסיית הבשורה',c:'religion',paid:false,e:'⛪',r:'4.6',d:'כנסייה עתיקה בנצרת'},
+  {n:'שוק הכרמל',c:'food',paid:false,e:'🧆',r:'4.5',d:'שוק אוכל תוסס'},
+  {n:'שוק מחנה יהודה',c:'food',paid:false,e:'🥙',r:'4.7',d:'השוק המפורסם בירושלים'},
+  {n:'שביל ישראל',c:'extreme',paid:false,e:'🥾',r:'4.8',d:'שביל הליכה ארצי'},
+  {n:'נחל פרת',c:'extreme',paid:false,e:'🏊',r:'4.5',d:'טיול שחייה בנחל'},
+  {n:'ריחוף בגליל',c:'extreme',paid:true,e:'🪂',r:'4.7',d:'ריחוף פרגלייד'},
+  {n:'צלילה בים סוף',c:'extreme',paid:true,e:'🤿',r:'4.9',d:'צלילה בשונית האלמוגים'}
+];
+
+// History
+function getHist() {
+  try { return JSON.parse(localStorage.getItem('dm_h') || '[]'); } catch(e) { return []; }
+}
+function saveHist(name, lat, lon) {
+  var h = getHist();
+  h = h.filter(function(x) { return x.n !== name; });
+  h.unshift({n:name, lat:lat, lon:lon});
+  if (h.length > 8) h = h.slice(0, 8);
+  try { localStorage.setItem('dm_h', JSON.stringify(h)); } catch(e) {}
+}
+function showHist() {
+  var h = getHist();
+  var c = document.getElementById('results');
+  if (!h.length) { c.style.display = 'none'; return; }
+  var html = '';
+  for (var i = 0; i < h.length; i++) {
+    html += '<div class="ri" onclick="selDest(' + h[i].lat + ',' + h[i].lon + ',\'' + h[i].n.replace(/'/g, '') + '\')">';
+    html += '<div class="ri-icon">🕐</div>';
+    html += '<div><div class="ri-name">' + h[i].n + '</div><div class="ri-addr">חיפוש אחרון</div></div></div>';
+  }
+  c.innerHTML = html;
+  c.style.display = 'block';
+}
+
+// Map saved style
+function getSaved(k, def) { try { return localStorage.getItem('dm_'+k) || def; } catch(e) { return def; } }
+function setSaved(k, v) { try { localStorage.setItem('dm_'+k, v); } catch(e) {} }
+
+// Init
+window.onload = function() {
+  map = L.map('map', {zoomControl:false, attributionControl:false});
+  lSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19});
+  lLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {maxZoom:19});
+  lStr = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom:19});
+  lDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19});
+
+  var saved = getSaved('map', 'sat');
+  setMap(saved);
+
+  document.getElementById('searchBtn').onclick = doSearch;
+  document.getElementById('cancelBtn').onclick = cancelNav;
+
+  var inp = document.getElementById('searchInput');
+  inp.onfocus = function() { if (!inp.value.trim()) showHist(); };
+  inp.onkeydown = function(e) { if (e.keyCode === 13) doSearch(); };
+  var sTO;
+  inp.oninput = function() {
+    var v = inp.value.trim();
+    if (!v) { showHist(); return; }
+    clearTimeout(sTO);
+    if (v.length >= 2) sTO = setTimeout(doSearch, 700);
+  };
+
+  document.onclick = function(e) {
+    if (!e.target.closest('#topBar')) document.getElementById('results').style.display = 'none';
+  };
+
+  if (navigator.geolocation) {
+    document.getElementById('loadMsg').textContent = 'מבקש גישה למיקום...';
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        myLat = pos.coords.latitude;
+        myLng = pos.coords.longitude;
+        map.setView([myLat, myLng], 16);
+        addMyMarker();
+        startWatch();
+        hideLoad();
+      },
+      function(err) {
+        if (err.code === 1) {
+          showToast('אשר גישה למיקום בהגדרות');
+        } else {
+          showToast('לא ניתן לאתר מיקום');
+        }
+        myLat = 32.0853; myLng = 34.7818;
+        map.setView([myLat, myLng], 14);
+        addMyMarker();
+        hideLoad();
+        setTimeout(function() { if (!watchId) startWatch(); }, 3000);
+      },
+      {enableHighAccuracy:true, timeout:15000, maximumAge:0}
+    );
+  } else {
+    myLat = 32.0853; myLng = 34.7818;
+    map.setView([myLat, myLng], 14);
+    addMyMarker();
+    hideLoad();
+  }
+};
+
+function hideLoad() {
+  setTimeout(function() {
+    var l = document.getElementById('loading');
+    l.style.opacity = '0';
+    l.style.transition = 'opacity 0.5s';
+    setTimeout(function() { if(l.parentNode) l.parentNode.removeChild(l); }, 500);
+  }, 600);
+}
+
+// Map style
+function setMap(style) {
+  mapStyle = style;
+  if (map.hasLayer(lSat)) map.removeLayer(lSat);
+  if (map.hasLayer(lLabels)) map.removeLayer(lLabels);
+  if (map.hasLayer(lStr)) map.removeLayer(lStr);
+  if (map.hasLayer(lDark)) map.removeLayer(lDark);
+  if (style === 'sat') { lSat.addTo(map); lLabels.addTo(map); }
+  else if (style === 'str') { lStr.addTo(map); }
+  else if (style === 'dark') { lDark.addTo(map); }
+  var opts = ['Sat','Str','Dark'];
+  for (var i = 0; i < opts.length; i++) {
+    var el = document.getElementById('mop' + opts[i]);
+    if (el) el.className = 'map-opt' + (style === opts[i].toLowerCase() ? ' active' : '');
+  }
+  setSaved('map', style);
+}
+
+// Markers
+function addMyMarker() {
+  if (myMarker) map.removeLayer(myMarker);
+  var html, sz, an;
+  if (isNav) {
+    html = '<div style="font-size:32px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5))">🚗</div>';
+    sz = [36, 36]; an = [18, 18];
+  } else {
+    html = '<div class="my-dot"></div>';
+    sz = [20, 20]; an = [10, 10];
+  }
+  myMarker = L.marker([myLat, myLng], {
+    icon: L.divIcon({className:'', html:html, iconSize:sz, iconAnchor:an}),
+    zIndexOffset: 1000
+  }).addTo(map);
+}
+function addDestMarker(lat, lng) {
+  if (destMarker) map.removeLayer(destMarker);
+  destMarker = L.marker([lat, lng], {
+    icon: L.divIcon({className:'', html:'<div class="dest-dot"></div>', iconSize:[14,14], iconAnchor:[7,7]})
+  }).addTo(map);
+}
+
+// GPS
+function startWatch() {
+  if (watchId) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(
+    function(pos) {
+      myLat = pos.coords.latitude;
+      myLng = pos.coords.longitude;
+      var spd = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+      if (myMarker) myMarker.setLatLng([myLat, myLng]);
+      if (isNav) { map.setView([myLat, myLng], 17); doNavUpdate(); }
+      updateSpeed(spd);
+    },
+    function(err) { console.log('Watch: ' + err.code); },
+    {enableHighAccuracy:true, maximumAge:2000, timeout:10000}
+  );
+}
+
+// Speed
+function updateSpeed(spd) {
+  document.getElementById('spdNum').textContent = spd;
+  var lim = 90;
+  var pct = spd / 130;
+  if (pct > 1) pct = 1;
+  var arc = pct * 153;
+  var el = document.getElementById('spdArc');
+  el.setAttribute('stroke-dasharray', arc + ' ' + (179 - arc));
+  var over = spd > lim;
+  el.setAttribute('stroke', over ? '#ff6b6b' : '#5dd6b3');
+  document.getElementById('spdLim').textContent = 'מותר ' + lim + (over ? ' ⚠️' : '');
+  document.getElementById('spdLim').setAttribute('fill', over ? '#ff6b6b' : 'rgba(93,214,179,0.7)');
+}
+
+// Search
+function doSearch() {
+  var query = document.getElementById('searchInput').value.trim();
+  if (!query) return;
+  showToast('🔍 מחפש...');
+  var lat = myLat || 32.0853;
+  var lng = myLng || 34.7818;
+  var url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=6&lat=' + lat + '&lon=' + lng;
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    var feats = data.features || [];
+    if (!feats.length) { showToast('לא נמצאו תוצאות'); return; }
+    var html = '';
+    for (var i = 0; i < feats.length; i++) {
+      var f = feats[i];
+      var p = f.properties;
+      var lat2 = f.geometry.coordinates[1];
+      var lng2 = f.geometry.coordinates[0];
+      var name = [p.name, p.street, p.housenumber].filter(Boolean).join(' ') || query;
+      var city = p.city || p.town || p.village || p.country || '';
+      var nameSafe = name.replace(/'/g, '');
+      html += '<div class="ri" onclick="selDest(' + lat2 + ',' + lng2 + ',\'' + nameSafe + '\')">';
+      html += '<div class="ri-icon">📍</div>';
+      html += '<div><div class="ri-name">' + name + '</div><div class="ri-addr">' + city + '</div></div></div>';
+    }
+    var c = document.getElementById('results');
+    c.innerHTML = html;
+    c.style.display = 'block';
+  }).catch(function() { showToast('שגיאת חיפוש'); });
+}
+
+function selDest(lat, lng, name) {
+  destLat = lat; destLng = lng;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('searchInput').value = name;
+  saveHist(name, lat, lng);
+  addDestMarker(lat, lng);
+  map.fitBounds([[myLat, myLng], [lat, lng]], {padding:[80,80]});
+  showToast('מחשב מסלול...');
+  fetchRoute();
+}
+
+// Route
+function fetchRoute() {
+  var base = travelMode === 'walk'
+    ? 'https://router.project-osrm.org/route/v1/foot'
+    : 'https://router.project-osrm.org/route/v1/driving';
+  var url = base + '/' + myLng + ',' + myLat + ';' + destLng + ',' + destLat + '?overview=full&geometries=geojson&steps=true';
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.code !== 'Ok' || !data.routes.length) { showToast('לא נמצא מסלול'); return; }
+    routeData = data.routes[0];
+    drawRoute(routeData.geometry.coordinates);
+    showRoutePanel(routeData);
+  }).catch(function() { showToast('שגיאת ניווט'); });
+}
+
+function drawRoute(coords) {
+  if (routeLine) map.removeLayer(routeLine);
+  var latlngs = [];
+  for (var i = 0; i < coords.length; i++) latlngs.push([coords[i][1], coords[i][0]]);
+  var color = travelMode === 'walk' ? '#ffd93d' : '#5dd6b3';
+  var opts = {color:color, weight:travelMode==='walk'?4:6, opacity:0.9, lineJoin:'round', lineCap:'round'};
+  if (travelMode === 'walk') opts.dashArray = '8 8';
+  routeLine = L.polyline(latlngs, opts).addTo(map);
+}
+
+function showRoutePanel(route) {
+  var mins = Math.round(route.duration / 60);
+  var km = (route.distance / 1000).toFixed(1);
+  var eta = new Date(Date.now() + route.duration * 1000);
+  var hh = eta.getHours() < 10 ? '0' + eta.getHours() : '' + eta.getHours();
+  var mm = eta.getMinutes() < 10 ? '0' + eta.getMinutes() : '' + eta.getMinutes();
+  document.getElementById('rtTime').textContent = mins;
+  document.getElementById('rtDist').textContent = km;
+  document.getElementById('rtEta').textContent = hh + ':' + mm;
+  var icon = travelMode === 'walk' ? '🚶' : '🚗';
+  var lbl = travelMode === 'walk' ? 'התחל הליכה' : 'התחל ניווט';
+  document.getElementById('startBtn').innerHTML = icon + ' &nbsp; ' + lbl;
+  document.getElementById('routePanel').style.display = 'block';
+  showToast(icon + ' ' + mins + ' דק׳ · ' + km + ' ק"מ');
+}
+
+function setMode(mode) {
+  travelMode = mode;
+  document.getElementById('modeDrive').className = 'mode-btn' + (mode === 'drive' ? ' active' : '');
+  document.getElementById('modeWalk').className = 'mode-btn' + (mode === 'walk' ? ' active' : '');
+  if (destLat) fetchRoute();
+}
+
+// Nav
+function startNav() {
+  if (!routeData) return;
+  isNav = true; curStep = 0; lastSpoken = -1;
+  document.getElementById('routePanel').style.display = 'none';
+  document.getElementById('topBar').style.display = 'none';
+  document.getElementById('navBar').style.display = 'block';
+  document.getElementById('speed').style.display = 'block';
+  addMyMarker();
+  map.setView([myLat, myLng], 18);
+  updateNavDisplay();
+  speak('מתחיל ניווט. ' + getStepTxt(0));
+  showToast('🚗 ניווט התחיל!');
+}
+
+function cancelNav() {
+  isNav = false;
+  document.getElementById('navBar').style.display = 'none';
+  document.getElementById('topBar').style.display = 'block';
+  document.getElementById('speed').style.display = 'none';
+  document.getElementById('turnAlert').style.display = 'none';
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+  document.getElementById('searchInput').value = '';
+  routeData = null; curStep = 0;
+  addMyMarker();
+  map.setView([myLat, myLng], 15);
+  showToast('ניווט בוטל');
+}
+
+var offCount = 0, lastRecalc = 0;
+
+function doNavUpdate() {
+  if (!routeData || !isNav) return;
+  var steps = routeData.legs[0].steps;
+  if (curStep >= steps.length) return;
+  var step = steps[curStep];
+  var dist = getDist(myLat, myLng, step.maneuver.location[1], step.maneuver.location[0]);
+
+  // Check off route
+  var onRt = isOnRoute();
+  if (!onRt) {
+    offCount++;
+    if (offCount >= 3) {
+      offCount = 0;
+      var now = Date.now();
+      if (now - lastRecalc > 10000) {
+        lastRecalc = now;
+        showToast('🔄 מחשב מסלול מחדש...');
+        speak('מחשב מסלול מחדש');
+        fetchRoute();
+        return;
+      }
+    }
+  } else { offCount = 0; }
+
+  if (dist < 80 && lastSpoken !== curStep) {
+    lastSpoken = curStep;
+    speak(getStepTxt(curStep));
+    showTurnAlert(step, dist);
+  }
+  if (dist < 25 && curStep < steps.length - 1) { curStep++; hideTurnAlert(); }
+  if (curStep >= steps.length - 1 && dist < 30) {
+    speak('הגעת ליעד');
+    showToast('🎯 הגעת ליעד!');
+    setTimeout(cancelNav, 3000);
+    return;
+  }
+  updateNavDisplay();
+}
+
+function isOnRoute() {
+  if (!routeData) return true;
+  var coords = routeData.geometry.coordinates;
+  var min = Infinity;
+  for (var i = 0; i < coords.length; i++) {
+    var d = getDist(myLat, myLng, coords[i][1], coords[i][0]);
+    if (d < min) min = d;
+  }
+  return min < 80;
+}
+
+function updateNavDisplay() {
+  if (!routeData) return;
+  var steps = routeData.legs[0].steps;
+  if (curStep >= steps.length) return;
+  var step = steps[curStep];
+  document.getElementById('navArrow').textContent = getArrow(step.maneuver.type, step.maneuver.modifier || '');
+  document.getElementById('navStreet').textContent = getStepTxt(curStep);
+  document.getElementById('navDist').textContent = fmtDist(step.distance);
+  var rem = 0;
+  for (var i = curStep; i < steps.length; i++) rem += steps[i].duration;
+  var eta = new Date(Date.now() + rem * 1000);
+  var hh = eta.getHours() < 10 ? '0' + eta.getHours() : '' + eta.getHours();
+  var mm = eta.getMinutes() < 10 ? '0' + eta.getMinutes() : '' + eta.getMinutes();
+  document.getElementById('navEta').textContent = hh + ':' + mm;
+  document.getElementById('navTime').textContent = Math.round(rem / 60) + ' דק׳';
+  var remDist = 0;
+  for (var j = curStep; j < steps.length; j++) remDist += steps[j].distance;
+  document.getElementById('navDist2').textContent = (remDist / 1000).toFixed(1) + ' ק"מ';
+}
+
+function getArrow(type, mod) {
+  if (type === 'turn') {
+    if (mod.indexOf('right') >= 0) return '➡️';
+    if (mod.indexOf('left') >= 0) return '⬅️';
+    if (mod.indexOf('uturn') >= 0) return '↩️';
+  }
+  if (type === 'roundabout') return '🔄';
+  if (type === 'arrive') return '🏁';
+  return '⬆️';
+}
+
+function getStepTxt(idx) {
+  var steps = routeData.legs[0].steps;
+  if (idx >= steps.length) return '';
+  var s = steps[idx], t = s.maneuver.type, m = s.maneuver.modifier || '', n = s.name || '';
+  if (t === 'arrive') return 'הגעת ליעד';
+  if (t === 'turn') {
+    if (m.indexOf('right') >= 0) return 'פנה ימינה' + (n ? ' ל' + n : '');
+    if (m.indexOf('left') >= 0) return 'פנה שמאלה' + (n ? ' ל' + n : '');
+    if (m.indexOf('uturn') >= 0) return 'בצע פניית פרסה';
+  }
+  if (t === 'roundabout') return 'כנס לכיכר';
+  if (t === 'exit roundabout') return 'צא מהכיכר';
+  return n ? 'המשך על ' + n : 'המשך ישר';
+}
+
+function showTurnAlert(step, dist) {
+  document.getElementById('taArrow').textContent = getArrow(step.maneuver.type, step.maneuver.modifier || '');
+  document.getElementById('taText').textContent = getStepTxt(curStep);
+  document.getElementById('taDist').textContent = 'בעוד ' + fmtDist(dist);
+  document.getElementById('turnAlert').style.display = '-webkit-flex';
+  document.getElementById('turnAlert').style.display = 'flex';
+  if (taTO) clearTimeout(taTO);
+  taTO = setTimeout(hideTurnAlert, 5000);
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+function hideTurnAlert() { document.getElementById('turnAlert').style.display = 'none'; }
+
+// Attractions
+function openAttr(btn) {
+  document.querySelectorAll('.bb').forEach(function(b) { b.className = 'bb'; });
+  if (btn) btn.className = 'bb active';
+  renderAttrs();
+  document.getElementById('attrPanel').style.display = '-webkit-flex';
+  document.getElementById('attrPanel').style.display = 'flex';
+}
+function closeAttr() {
+  document.getElementById('attrPanel').style.display = 'none';
+  document.querySelectorAll('.bb').forEach(function(b) { b.className = 'bb'; });
+  document.getElementById('bbNav').className = 'bb active';
+}
+function setPriceF(val, el) {
+  priceFilter = val;
+  document.querySelectorAll('.price-btn').forEach(function(b) { b.className = 'price-btn'; });
+  el.className = 'price-btn active';
+  renderAttrs();
+}
+function setCatF(val, el) {
+  catFilter = val;
+  document.querySelectorAll('.cat-btn').forEach(function(b) { b.className = 'cat-btn'; });
+  el.className = 'cat-btn active';
+  renderAttrs();
+}
+function renderAttrs() {
+  var items = ATTRS.slice();
+  if (priceFilter === 'free') items = items.filter(function(a) { return !a.paid; });
+  if (priceFilter === 'paid') items = items.filter(function(a) { return a.paid; });
+  if (catFilter !== 'all') items = items.filter(function(a) { return a.c === catFilter; });
+  var list = document.getElementById('attrList');
+  if (!items.length) { list.innerHTML = '<div class="attr-empty">אין אטרקציות בקטגוריה זו</div>'; return; }
+  for (var i = 0; i < items.length; i++) {
+    items[i].dist = Math.round(Math.random() * 15 + 0.5);
+  }
+  items.sort(function(a, b) { return a.dist - b.dist; });
+  var html = '';
+  for (var j = 0; j < items.length; j++) {
+    var a = items[j];
+    var tagCls = a.paid ? 'attr-tag tag-paid' : 'attr-tag tag-free';
+    var tagTxt = a.paid ? '💰 בתשלום' : '✅ חינמי';
+    var nameSafe = a.n.replace(/'/g, '');
+    html += '<div class="attr-card" onclick="navToAttr(\'' + nameSafe + '\')">';
+    html += '<div class="attr-emoji">' + a.e + '</div>';
+    html += '<div style="flex:1"><div class="attr-name">' + a.n + '</div>';
+    html += '<div class="attr-meta"><span class="attr-dist">📍 ' + a.dist + ' ק"מ</span>';
+    html += '<span class="' + tagCls + '">' + tagTxt + '</span>';
+    html += '<span class="attr-rat">⭐ ' + a.r + '</span></div>';
+    html += '<div class="attr-desc">' + a.d + '</div></div></div>';
+  }
+  list.innerHTML = html;
+}
+function navToAttr(name) {
+  closeAttr();
+  document.getElementById('searchInput').value = name;
+  doSearch();
+}
+
+// Settings
+function openSettings(btn) {
+  document.querySelectorAll('.bb').forEach(function(b) { b.className = 'bb'; });
+  if (btn) btn.className = 'bb active';
+  document.getElementById('settingsPanel').style.display = '-webkit-flex';
+  document.getElementById('settingsPanel').style.display = 'flex';
+}
+function closeSettings() {
+  document.getElementById('settingsPanel').style.display = 'none';
+  document.querySelectorAll('.bb').forEach(function(b) { b.className = 'bb'; });
+  document.getElementById('bbNav').className = 'bb active';
+}
+function showNav(btn) {
+  document.querySelectorAll('.bb').forEach(function(b) { b.className = 'bb'; });
+  if (btn) btn.className = 'bb active';
+  if (!isNav) document.getElementById('topBar').style.display = 'block';
+}
+function tgl(el) {
+  if (el.className.indexOf('on') >= 0) { el.className = 'tgl off'; }
+  else { el.className = 'tgl on'; }
+}
+
+// Utils
+function getDist(a, b, c, d) {
+  var R = 6371000;
+  var dL = (c - a) * Math.PI / 180;
+  var dG = (d - b) * Math.PI / 180;
+  var x = Math.sin(dL/2) * Math.sin(dL/2) + Math.cos(a*Math.PI/180) * Math.cos(c*Math.PI/180) * Math.sin(dG/2) * Math.sin(dG/2);
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+function fmtDist(m) { return m >= 1000 ? (m/1000).toFixed(1) + ' ק"מ' : Math.round(m) + ' מ׳'; }
+function speak(text) {
+  if (!synth) return;
+  synth.cancel();
+  var u = new SpeechSynthesisUtterance(text);
+  u.lang = 'he-IL'; u.rate = 0.95;
+  synth.speak(u);
+}
+function goToMe() { if (myLat) map.setView([myLat, myLng], 16); }
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._t);
+  t._t = setTimeout(function() { t.style.opacity = '0'; }, 2500);
+}
+</script>
+</body>
+</html>
