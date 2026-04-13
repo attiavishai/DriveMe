@@ -108,7 +108,7 @@ body{background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,sans-serif;heigh
 
 /* ── ROUTES PANEL ── */
 #routesPanel{
-  position:absolute;bottom:90px;left:12px;right:12px;z-index:100;
+  position:absolute;bottom:100px;left:12px;right:12px;z-index:100;
   background:rgba(10,10,10,0.97);backdrop-filter:blur(20px);
   border:1px solid rgba(255,107,53,0.25);border-radius:18px;
   padding:16px;display:none;max-height:60vh;overflow-y:auto;
@@ -182,14 +182,14 @@ body{background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,sans-serif;heigh
   box-shadow:0 4px 16px rgba(167,139,250,0.35);display:none;
 }
 #reportBtn{
-  position:absolute;top:100px;right:14px;z-index:100;
+  position:absolute;top:160px;right:14px;z-index:100;
   width:48px;height:48px;border-radius:50%;
   background:rgba(255,80,80,0.85);border:none;
   display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;
   box-shadow:0 4px 16px rgba(255,80,80,0.35);
 }
 #sosBtn{
-  position:absolute;top:100px;left:14px;z-index:100;
+  position:absolute;top:160px;left:14px;z-index:100;
   width:48px;height:48px;border-radius:50%;
   background:rgba(255,80,80,0.15);border:1.5px solid rgba(255,80,80,0.5);
   display:flex;align-items:center;justify-content:center;cursor:pointer;
@@ -699,6 +699,18 @@ body{background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,sans-serif;heigh
 
 <div id="toast"></div>
 
+
+<!-- FAVORITES PANEL -->
+<div id="favPanel">
+  <div class="panel-hdr">
+    <button class="panel-back" onclick="closeFavorites()">← חזור</button>
+    <div class="panel-title">⭐ בחר מועדפים</div>
+  </div>
+  <div style="font-size:12px;color:rgba(255,255,255,0.35);padding:12px 16px 0;text-align:center">בחר עד 4 קטגוריות שיופיעו בסרגל התחתון</div>
+  <div class="fav-grid" id="favGrid"></div>
+  <button class="fav-save-btn" onclick="saveFavorites()">✓ שמור מועדפים</button>
+</div>
+
 <!-- BOTTOM BAR -->
 <div id="bottomBar">
   <div id="bottomCard">
@@ -708,8 +720,8 @@ body{background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,sans-serif;heigh
     <button class="bb" id="bbDiscover" onclick="openPOI('attract',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>גלה
     </button>
-    <button class="bb" id="bbSyn" onclick="openSyn(this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7v13h20V7L12 2z"/><path d="M9 22V12h6v10"/></svg>בתי כנסת
+    <button class="bb" id="bbFav" onclick="openFavorites(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>מועדפים
     </button>
     <button class="bb" id="bbSettings" onclick="openSettings(this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>הגדרות
@@ -718,6 +730,7 @@ body{background:#0a0a0a;color:#f0f0f0;font-family:-apple-system,sans-serif;heigh
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <script>
 // ===== STATE =====
 var map,myMarker,destMarker,routeLine,parkMarker;
@@ -766,7 +779,7 @@ var POI_DATA={
 
 // ===== INIT =====
 window.onload=function(){
-  map=L.map('map',{zoomControl:false,attributionControl:false});
+  map=L.map('map',{zoomControl:false,attributionControl:false,rotate:true,touchRotate:false});
   lSat=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
   lStr=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
   lDark=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
@@ -781,6 +794,7 @@ window.onload=function(){
     );
   } else {myLat=32.0853;myLng=34.7818;map.setView([myLat,myLng],13);addMyMarker();}
   map.on('click',function(){document.getElementById('historyList').style.display='none';});
+  updateQuickBarFromFavs();
   if(parkLat)addParkMarker();
 };
 
@@ -804,10 +818,17 @@ function setMap(style){
   document.querySelectorAll('.map-opt').forEach(function(e){e.classList.remove('active');});
   document.getElementById('mop'+style.charAt(0).toUpperCase()+style.slice(1)).classList.add('active');
 }
+var currentHeading=0;
 function addMyMarker(){
   if(myMarker)map.removeLayer(myMarker);
-  var html=isNav?'<div style="font-size:30px;line-height:1">🚗</div>':'<div class="my-dot"></div>';
-  var sz=isNav?[34,34]:[18,18],an=isNav?[17,17]:[9,9];
+  var html,sz,an;
+  if(isNav){
+    html='<div style="font-size:30px;line-height:1;transform:rotate('+currentHeading+'deg);transition:transform 0.5s">🚗</div>';
+    sz=[34,34];an=[17,17];
+  } else {
+    html='<div class="my-dot"></div>';
+    sz=[18,18];an=[9,9];
+  }
   myMarker=L.marker([myLat,myLng],{icon:L.divIcon({className:'',html:html,iconSize:sz,iconAnchor:an}),zIndexOffset:1000}).addTo(map);
 }
 function addDestMarker(){
@@ -827,9 +848,16 @@ function startWatch(){
     function(p){
       myLat=p.coords.latitude;myLng=p.coords.longitude;
       var spd=p.coords.speed?Math.round(p.coords.speed*3.6):0;
+      if(p.coords.heading!=null&&!isNaN(p.coords.heading)){currentHeading=p.coords.heading;if(isNav&&map.setBearing)map.setBearing(p.coords.heading);}
       addMyMarker();updateSpeed(spd);
-      if(isNav){map.setView([myLat,myLng],17);doNavUpdate();}
-      else{map.panTo([myLat,myLng]);}
+      if(isNav){
+        var viewOpts={animate:true};
+        if(p.coords.heading!=null&&!isNaN(p.coords.heading)){
+          map.setBearing(p.coords.heading);
+        }
+        map.setView([myLat,myLng],17,viewOpts);
+        doNavUpdate();
+      } else {map.panTo([myLat,myLng]);}
     },
     function(e){console.log('Watch:'+e.code);},
     {enableHighAccuracy:true,maximumAge:2000,timeout:10000}
@@ -989,7 +1017,7 @@ function cancelNav(){
   if(routeLine){map.removeLayer(routeLine);routeLine=null;}
   if(destMarker){map.removeLayer(destMarker);destMarker=null;}
   document.getElementById('searchInput').value='';
-  routeData=null;curStep=0;addMyMarker();map.setView([myLat,myLng],15);
+  routeData=null;curStep=0;addMyMarker();if(map.setBearing)map.setBearing(0);map.setView([myLat,myLng],15);
   toast('ניווט בוטל');
 }
 function doNavUpdate(){
@@ -1293,6 +1321,66 @@ function checkBusinessHours(){
       toast('⚠️ שעות פתיחה: בתי עסק רבים עשויים להיות סגורים');
     },1500);
   }
+}
+
+
+// ===== FAVORITES =====
+var ALL_FAVS = [
+  {id:'fuel',icon:'⛽',name:'דלק'},
+  {id:'food',icon:'🍽️',name:'אוכל'},
+  {id:'attract',icon:'🏖️',name:'אטרקציות'},
+  {id:'coffee',icon:'☕',name:'קפה'},
+  {id:'parking',icon:'🅿️',name:'חניה'},
+  {id:'medical',icon:'🏥',name:'רפואה'},
+  {id:'hotel',icon:'🏨',name:'מלונות'},
+  {id:'shopping',icon:'🛍️',name:'קניות'},
+  {id:'syn',icon:'🕍',name:'בתי כנסת'},
+  {id:'report',icon:'🚨',name:'דיווח'},
+  {id:'sos',icon:'🆘',name:'חירום'},
+];
+var selectedFavs = [];
+try{selectedFavs=JSON.parse(localStorage.getItem('dm_favs')||'["fuel","food","attract","syn"]');}catch(e){selectedFavs=['fuel','food','attract','syn'];}
+
+function openFavorites(btn){
+  if(btn){document.querySelectorAll('.bb').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+  renderFavGrid();
+  document.getElementById('favPanel').style.display='flex';
+}
+function closeFavorites(){
+  document.getElementById('favPanel').style.display='none';
+  document.querySelectorAll('.bb').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('bbNav').classList.add('active');
+}
+function renderFavGrid(){
+  document.getElementById('favGrid').innerHTML=ALL_FAVS.map(function(f){
+    var sel=selectedFavs.indexOf(f.id)>=0?' selected':'';
+    return '<div class="fav-item'+sel+'" onclick="toggleFav(' + JSON.stringify(f.id) + ')" id="fav_'+f.id+'">'
+      +'<span class="fav-item-icon">'+f.icon+'</span>'
+      +'<span class="fav-item-name">'+f.name+'</span>'
+      +'</div>';
+  }).join('');
+}
+function toggleFav(id){
+  var idx=selectedFavs.indexOf(id);
+  if(idx>=0){selectedFavs.splice(idx,1);}
+  else{if(selectedFavs.length>=4){toast('ניתן לבחור עד 4 מועדפים');return;}selectedFavs.push(id);}
+  renderFavGrid();
+}
+function saveFavorites(){
+  try{localStorage.setItem('dm_favs',JSON.stringify(selectedFavs));}catch(e){}
+  closeFavorites();
+  toast('✅ מועדפים נשמרו!');
+  updateQuickBarFromFavs();
+}
+function updateQuickBarFromFavs(){
+  // Update quick bar to show selected favorites
+  var inner=document.getElementById('quickBarInner');
+  if(!inner)return;
+  inner.innerHTML=selectedFavs.slice(0,4).map(function(id){
+    var f=ALL_FAVS.find(function(x){return x.id===id;})||{icon:'⭐',name:id};
+    var action=id==='syn'?'openSyn()':id==='report'?'openReport()':id==='sos'?'doSOS()':'openPOI("'+id+'")';
+    return '<button class="qbBtn" onclick="'+action+'"><span class="qbIcon">'+f.icon+'</span>'+f.name+'</button>';
+  }).join('');
 }
 
 // ===== UTILS =====
